@@ -1,6 +1,8 @@
 <?php namespace Impl\Repo\Article;
 
-class EloquentArticle implements ArticleInterface {
+use Impl\Repo\RepoAbstract;
+
+class EloquentArticle extends RepoAbstract implements ArticleInterface {
 
     protected $article;
     protected $cache;
