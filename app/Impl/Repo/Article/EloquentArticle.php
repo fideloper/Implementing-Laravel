@@ -118,4 +118,76 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
 
     }
 
+    /**
+     * Create a new Article
+     *
+     * @param array  Data to create a new object
+     * @return boolean
+     */
+    public function create(array $data)
+    {
+        // Create the article
+        $article = Article::create(
+            'user_id' => $data['user_id'],
+            'status_id' => $data['status_id'],
+            'title' => $data['title'],
+            'slug' => $this->slug($data['slug']),
+            'excerpt' => $data['excerpt'],
+            'content' => $data['content'],
+        );
+
+        if( ! $article )
+        {
+            return false;
+        }
+
+        $this->syncTags($article, $data['tags']);
+
+        return true;
+    }
+
+    /**
+     * Update an existing Article
+     *
+     * @param array  Data to update an Article
+     * @return boolean
+     */
+    public function update(array $data)
+    {
+        $article = $this->article->find($data['id']);
+        $article->user_id = $data['user_id'];
+        $article->status_id = $data['status_id'];
+        $article->title = $data['title'];
+        $article->slug = $this->slug($data['slug']),
+        $article->excerpt = $data['excerpt'];
+        $article->content = $data['content'];
+        $article->save();
+
+        $this->syncTags($article, $data['tags']);
+
+        return $true;
+    }
+
+    /**
+     * Sync tags for article
+     *
+     * @param \Illuminate\Database\Eloquent\Model  $article
+     * @param array  $tags
+     * @return void
+     */
+    protected function syncTags($article, $tags)
+    {
+        // Create or add tags
+        $tags = $this->tag->findOrCreate( $data['tags'] );
+
+        $tagIds = array();
+        $tags->each(function($tag) use ($tagIds)
+        {
+            $tagIds[] = $tag->id;
+        });
+
+        // Assign set tags to article
+        $this->article->tags()->sync($tagIds);
+    }
+
 }
