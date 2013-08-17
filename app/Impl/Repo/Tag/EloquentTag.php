@@ -1,6 +1,8 @@
 <?php namespace Impl\Repo\Tag;
 
 use Impl\Repo\RepoAbstract;
+use Impl\Service\Cache\CacheInterface;
+use Illuminate\Database\Eloquent\Model;
 
 class EloquentTag extends RepoAbstract implements TagInterface {
 

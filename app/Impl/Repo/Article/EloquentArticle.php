@@ -1,16 +1,20 @@
 <?php namespace Impl\Repo\Article;
 
 use Impl\Repo\RepoAbstract;
+use Impl\Service\Cache\CacheInterface;
+use Illuminate\Database\Eloquent\Model;
 
 class EloquentArticle extends RepoAbstract implements ArticleInterface {
 
     protected $article;
+    protected $tag;
     protected $cache;
 
     // Class expects an Eloquent model
-    public function __construct(Model $article, CacheInterface $cache)
+    public function __construct(Model $article, Model $tag, CacheInterface $cache)
     {
         $this->article = $article;
+        $this->tag = $tag;
         $this->cache = $cache;
     }
 
@@ -31,15 +35,11 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
         }
 
         // Item not cached, retrieve it
-        $articles = $this->article->orderBy('created_at', 'desc')
-                                   ->skip(($page-1)*$limit)
-                                   ->take($limit)
-                                   ->get();
-
-        $count = $this->article->count();
+        $paginated = $this->article->orderBy('created_at', 'desc')
+                                   ->paginate($limit);
 
         // Store in cache for next request
-        $cached = $this->cache->putPaginated($page, $limit, $count, $articles, $key);
+        $cached = $this->cache->putPaginated($page, $limit, $paginated->getTotal(), $paginated->getItems(), $key);
 
         return $cached;
     }
@@ -100,19 +100,13 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
 
         // Do our joining a little manually here to accomplish article ordering
         // and to paginate results more easily
-        $articles = $this->article->join('articles_tags', 'articles.id', '=', 'articles_tags.article_id')
-                             ->where('articles_tags.tag_id', $foundTag->id)
-                             ->orderBy('articles.created_at', 'desc')
-                             ->skip(($page-1)*$limit)
-                             ->take($limit)
-                             ->get();
-
-        $count = $this->article->join('articles_tags', 'articles.id', '=', 'articles_tags.article_id')
-                                ->where('articles_tags.tag_id', $foundTag->id)
-                                ->count();
+        $paginated = $this->article->join('articles_tags', 'articles.id', '=', 'articles_tags.article_id')
+                            ->where('articles_tags.tag_id', $foundTag->id)
+                            ->orderBy('articles.created_at', 'desc')
+                            ->paginate($limit);
 
         // Store in cache for next request
-        $cached = $this->cache->put($page, $limit, $count, $articles, $key);
+        $cached = $this->cache->put($page, $limit, $paginated->getTotal(), $paginated->getItems(), $key);
 
         return $cached;
 
