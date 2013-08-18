@@ -35,7 +35,8 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
         }
 
         // Item not cached, retrieve it
-        $paginated = $this->article->orderBy('created_at', 'desc')
+        $paginated = $this->article->where('status_id', 1)
+                                   ->orderBy('created_at', 'desc')
                                    ->paginate($limit);
 
         // Store in cache for next request
@@ -62,8 +63,9 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
 
         // Item not cached, retrieve it
         $article = $this->article->with('tags')
-                             ->where('slug', $slug)
-                             ->first();
+                            ->where('slug', $slug)
+                            ->where('status_id', 1)
+                            ->first();
 
         // Store in cache for next request
         $this->cache->put($key, $article);
@@ -102,6 +104,7 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
         // and to paginate results more easily
         $paginated = $this->article->join('articles_tags', 'articles.id', '=', 'articles_tags.article_id')
                             ->where('articles_tags.tag_id', $foundTag->id)
+                            ->where('articles.status_id', 1)
                             ->orderBy('articles.created_at', 'desc')
                             ->paginate($limit);
 
