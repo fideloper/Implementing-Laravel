@@ -121,14 +121,14 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
     public function create(array $data)
     {
         // Create the article
-        $article = Article::create(
+        $article = Article::create(array(
             'user_id' => $data['user_id'],
             'status_id' => $data['status_id'],
             'title' => $data['title'],
-            'slug' => $this->slug($data['slug']),
+            'slug' => $this->slug($data['title']),
             'excerpt' => $data['excerpt'],
             'content' => $data['content'],
-        );
+        ));
 
         if( ! $article )
         {
@@ -152,7 +152,7 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
         $article->user_id = $data['user_id'];
         $article->status_id = $data['status_id'];
         $article->title = $data['title'];
-        $article->slug = $this->slug($data['slug']),
+        $article->slug = $this->slug($data['title']);
         $article->excerpt = $data['excerpt'];
         $article->content = $data['content'];
         $article->save();

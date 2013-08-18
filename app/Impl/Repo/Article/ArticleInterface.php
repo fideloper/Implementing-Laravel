@@ -1,4 +1,4 @@
-<?php namespace Impl\Repo\Article
+<?php namespace Impl\Repo\Article;
 
 interface ArticleInterface {
 
