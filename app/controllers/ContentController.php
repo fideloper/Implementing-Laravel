@@ -18,11 +18,13 @@ class ContentController extends BaseController {
     public function home()
     {
         $page = Input::get('page', 1);
-        $rpp = 10;
 
-        $pagiData = $this->article->page($page, $rpp);
+        // Candidate for config item
+        $perPage = 10;
 
-        $articles = Paginator::make($pagiData->items, $pagiData->totalItems, $rpp);
+        $pagiData = $this->article->page($page, $perPage);
+
+        $articles = Paginator::make($pagiData->items, $pagiData->totalItems, $perPage);
 
         return View::make('home')->with('articles', $articles);
     }
