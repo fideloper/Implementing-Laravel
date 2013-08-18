@@ -12,3 +12,4 @@
 */
 
 Route::get('/', 'ContentController@home');
+Route::get('/{slug}', 'ContentController@article');

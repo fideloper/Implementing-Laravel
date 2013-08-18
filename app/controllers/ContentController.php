@@ -31,4 +31,20 @@ class ContentController extends BaseController {
         $this->layout->content = View::make('home')->with('articles', $articles);
     }
 
+    /**
+     * Single article
+     * GET /{slug}
+     */
+    public function article($slug)
+    {
+        $article = $this->article->bySlug($slug);
+
+        if( ! $article )
+        {
+            App::abort(404);
+        }
+
+        $this->layout->content = View::make('article')->with('article', $article);
+    }
+
 }
