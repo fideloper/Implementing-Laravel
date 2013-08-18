@@ -65,7 +65,9 @@ class LaravelCache implements CacheInterface {
         $cached->totalItems = $totalItems;
         $cached->perPage = $perPage;
 
-        return $this->put($key, $cached, $minutes);
+        $this->put($key, $cached, $minutes);
+
+        return $cached;
     }
 
     /**

@@ -13,7 +13,6 @@ class ArticleFormValidation extends LaravelValidationAbstract {
         'title' => 'required',
         'user_id' => 'required|exists:users,id', // Assumes db connection
         'status_id' => 'required|exists:statuses,id', // Assumes db connection
-        'slug' => 'required',
         'excerpt' => 'required',
         'content' => 'required',
         'tags' => 'required',

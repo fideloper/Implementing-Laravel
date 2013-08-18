@@ -20,9 +20,9 @@ class ContentController extends BaseController {
         $page = Input::get('page', 1);
 
         // Candidate for config item
-        $perPage = 10;
+        $perPage = 3;
 
-        $pagiData = $this->article->page($page, $perPage);
+        $pagiData = $this->article->byPage($page, $perPage);
 
         $articles = Paginator::make($pagiData->items, $pagiData->totalItems, $perPage);
 
