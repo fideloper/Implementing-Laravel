@@ -24,7 +24,7 @@
             <a class="toggle" gumby-trigger="#nav1 > .row > ul" href="#"><i class="icon-menu"></i></a>
             <h1 class="four columns logo">
                 <a href="/">
-                    <img src="img/gumby_mainlogo.png" gumby-retina />
+                    <img src="/img/gumby_mainlogo.png" gumby-retina />
                 </a>
             </h1>
             <ul class="eight columns">
