@@ -9,9 +9,28 @@ class ArticleController extends BaseController {
 
     protected $articleform;
 
-    public function __construct(ArticleForm $articleform)
+    public function __construct(ArticleInterface $article, ArticleForm $articleform)
     {
+        $this->article = $article;
         $this->articleform = $articleform;
+    }
+
+    /**
+     * List articles
+     * GET /admin/article
+     */
+    public function index()
+    {
+        $page = Input::get('page', 1);
+
+        // Candidate for config item
+        $perPage = 3;
+
+        $pagiData = $this->article->byPage($page, $perPage);
+
+        $articles = Paginator::make($pagiData->items, $pagiData->totalItems, $perPage);
+
+        $this->layout->content = View::make('admin.article_list')->with('articles', $articles);
     }
 
     /**
@@ -20,7 +39,7 @@ class ArticleController extends BaseController {
      */
     public function create()
     {
-        View::make('admin.article_create', array(
+        $this->layout->content = View::make('admin.article_create', array(
             'input' => Session::getOldInput()
         ));
     }
@@ -51,7 +70,7 @@ class ArticleController extends BaseController {
      */
     public function edit()
     {
-        View::make('admin.article_edit', array(
+        $this->layout->content = View::make('admin.article_edit', array(
             'input' => Session::getOldInput()
         ));
     }
