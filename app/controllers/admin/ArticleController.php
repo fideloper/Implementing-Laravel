@@ -1,8 +1,11 @@
 <?php
 
 use Impl\Repo\Article\ArticleInterface;
+use Impl\Service\Form\Article\ArticleForm;
 
 class ArticleController extends BaseController {
+
+    protected $layout = 'layout';
 
     protected $articleform;
 
@@ -31,11 +34,42 @@ class ArticleController extends BaseController {
         if( $this->articeform->save( Input::all() ) )
         {
             // Success!
-            Redirect::to('admin/article')
+            Redirect::to('admin.article')
                     ->with('status', 'success');
         } else {
 
-            Redirect::to('admin/article')
+            Redirect::to('admin.article_create')
+                    ->withInput()
+                    ->withErrors( $this->articleform->errors() )
+                    ->with('status', 'error');
+        }
+    }
+
+    /**
+     * Create article form
+     * GET /admin/article/{id}/edit
+     */
+    public function edit()
+    {
+        View::make('admin.article_edit', array(
+            'input' => Session::getOldInput()
+        ));
+    }
+
+    /**
+     * Create article form
+     * PUT /admin/article/{id}
+     */
+    public function update()
+    {
+        if( $this->articeform->update( Input::all() ) )
+        {
+            // Success!
+            Redirect::to('admin.article')
+                    ->with('status', 'success');
+        } else {
+
+            Redirect::to('admin.article_edit')
                     ->withInput()
                     ->withErrors( $this->articleform->errors() )
                     ->with('status', 'error');

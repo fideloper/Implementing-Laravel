@@ -1,8 +1,8 @@
 <?php namespace Impl\Service\Form\Article;
 
-use Impl\Service\Validation\AbstractLaravelValidation;
+use Impl\Service\Validation\AbstractLaravelValidator;
 
-class ArticleFormValidation extends LaravelValidationAbstract {
+class ArticleFormLaravelValidator extends AbstractLaravelValidator {
 
     /**
      * Validation rules

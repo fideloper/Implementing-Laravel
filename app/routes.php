@@ -13,3 +13,8 @@
 
 Route::get('/', 'ContentController@home');
 Route::get('/{slug}', 'ContentController@article');
+
+Route::group(array('prefix' => 'admin'), function()
+{
+    Route::resource('article', 'ArticleController');
+});

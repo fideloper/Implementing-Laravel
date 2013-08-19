@@ -2,6 +2,7 @@
 
 use Illuminate\Support\ServiceProvider;
 use Impl\Service\Form\Article\ArticleForm;
+use Impl\Service\Form\Article\ArticleFormLaravelValidator;
 
 class FormServiceProvider extends ServiceProvider {
 
@@ -16,7 +17,10 @@ class FormServiceProvider extends ServiceProvider {
 
         $app->bind('Impl\Service\Form\Article\ArticleForm', function() use ($app)
         {
-            return new ArticleForm( $app['validator'], $app->make('Impl\Repo\Article\ArticleInterface') );
+            return new ArticleForm(
+                new ArticleFormLaravelValidator( $app['validator'] ),
+                $app->make('Impl\Repo\Article\ArticleInterface')
+            );
         });
     }
 

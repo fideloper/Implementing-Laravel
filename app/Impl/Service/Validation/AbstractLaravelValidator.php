@@ -1,8 +1,8 @@
 <?php namespace Impl\Service\Validation;
 
-abstract class AbstractLaravelValidator implements ValidableInterface {
+use Illuminate\Validation\Factory;
 
-    use Illuminate\Validation\Factory;
+abstract class AbstractLaravelValidator implements ValidableInterface {
 
     /**
      * Validator
