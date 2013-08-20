@@ -19,15 +19,16 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
     }
 
     /**
-     * Get paginated articles
+     * Retrieve article by id
+     * regardless of status
      *
-     * @param int  Number of articles per page
-     * @return StdClass Object with $items and $totalItems for pagination
+     * @param  int $id Article ID
+     * @return stdObject object of article information
      */
-    public function byPage($page=1, $limit=10)
+    public function byId($id)
     {
-        // Build our cache item key, unique per page number and limit
-        $key = md5('page.'.$page.'.'.$limit);
+        // Build the cache key, unique per article slug
+        $key = md5('id.'.$id);
 
         if( $this->cache->has($key) )
         {
@@ -35,9 +36,51 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
         }
 
         // Item not cached, retrieve it
-        $paginated = $this->article->where('status_id', 1)
-                                   ->orderBy('created_at', 'desc')
-                                   ->paginate($limit);
+        $article = $this->article->with('status')
+                            ->with('author')
+                            ->with('tags')
+                            ->where('id', $id)
+                            ->first();
+
+        // Store in cache for next request
+        $this->cache->put($key, $article);
+
+        return $article;
+    }
+
+    /**
+     * Get paginated articles
+     *
+     * @param int $page Number of articles per page
+     * @param int $limit Results per page
+     * @param boolean $all Show published or all
+     * @return StdClass Object with $items and $totalItems for pagination
+     */
+    public function byPage($page=1, $limit=10, $all=false)
+    {
+        // Build our cache item key, unique per page number,
+        // limit and if we're showing all
+        $allkey = ($all) ? '.all' : '';
+        $key = md5('page.'.$page.'.'.$limit.$allkey);
+
+        if( $this->cache->has($key) )
+        {
+            return $this->cache->get($key);
+        }
+
+        // Item not cached, retrieve it
+        $query = $this->article->with('status')
+                               ->with('author')
+                               ->with('tags')
+                               ->orderBy('created_at', 'desc');
+
+        // All posts or only published
+        if( ! $all )
+        {
+            $query->where('status_id', 1);
+        }
+
+        $paginated = $query->paginate($limit);
 
         // Store in cache for next request
         $cached = $this->cache->putPaginated($page, $limit, $paginated->getTotal(), $paginated->getItems(), $key);
@@ -62,7 +105,9 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
         }
 
         // Item not cached, retrieve it
-        $article = $this->article->with('tags')
+        $article = $this->article->with('status')
+                            ->with('author')
+                            ->with('tags')
                             ->where('slug', $slug)
                             ->where('status_id', 1)
                             ->first();
