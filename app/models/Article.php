@@ -37,7 +37,7 @@ class Article extends Eloquent {
      */
     public function author()
     {
-        return $this->hasOne('User');
+        return $this->belongsTo('User');
     }
 
     /**
@@ -47,7 +47,7 @@ class Article extends Eloquent {
      */
     public function status()
     {
-        return $this->hasOne('Status');
+        return $this->belongsTo('Status');
     }
 
     /**
