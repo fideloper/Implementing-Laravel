@@ -18,7 +18,7 @@ class ExceptionServiceProvider extends ServiceProvider
 
         $app['impl.exception'] = $app->share(function() use ($app)
         {
-            return new Handler( $app['notification.sms'] );
+            return new NotifyHandler( $app['notification.sms'] );
         });
     }
 
