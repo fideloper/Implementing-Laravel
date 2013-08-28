@@ -1,5 +1,6 @@
 <?php namespace Impl\Service\Notification;
 
+use Services_Twilio;
 use Illuminate\Support\ServiceProvider;
 
 class NotificationServiceProvider extends ServiceProvider {
@@ -22,7 +23,19 @@ class NotificationServiceProvider extends ServiceProvider {
 
         $app['notification.sms'] = $app->share(function() use ($app)
         {
-            return new SmsNotifier( $app['laratwilio'] )
+            $config = $app['config'];
+
+            $twilio = new Services_Twilio(
+                $config->get('twilio.account_id'),
+                $config->get('twilio.auth_token')
+            );
+
+            $notifier = SmsNotifier( $twilio );
+
+            $notifier->from( $config['twilio.from'] )
+                    ->to( $config['twilio.to'] );
+
+            return $notifier;
         });
     }
 
