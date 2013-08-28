@@ -30,7 +30,7 @@ class NotificationServiceProvider extends ServiceProvider {
                 $config->get('twilio.auth_token')
             );
 
-            $notifier = SmsNotifier( $twilio );
+            $notifier = new SmsNotifier( $twilio );
 
             $notifier->from( $config['twilio.from'] )
                     ->to( $config['twilio.to'] );
