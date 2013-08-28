@@ -1,6 +1,6 @@
 <?php Impl\Service\Notification;
 
-use Twilio\Sms;
+use Services_Twilio;
 
 class SmsNotifier implements NotifierInterface {
 
@@ -18,11 +18,11 @@ class SmsNotifier implements NotifierInterface {
 
     /**
      * Twilio SMS SDK
-     * @var \Twilio\Sms
+     * @var \Services_Twilio
      */
     protected $twilio;
 
-    public function __construct(Sms $twilio)
+    public function __construct(Services_Twilio $twilio)
     {
         $this->twilio = $twilio;
     }
@@ -53,11 +53,14 @@ class SmsNotifier implements NotifierInterface {
 
     public function notify($subject, $message)
     {
-        $this->twilio->send( array(
-            'to' => $this->to,
-            'from' => $this->from,
-            'text' => $this->subject."\n".$this->message,
-        ) );
+        $this->twilio
+            ->account
+            ->sms_messages
+            ->create(
+                $this->from,
+                $this->to,
+                $this->subject."\n".$this->message
+            );
     }
 
 }
