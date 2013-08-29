@@ -80,10 +80,17 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
             $query->where('status_id', 1);
         }
 
-        $paginated = $query->paginate($limit);
+        $articles = $query->skip( $limit * ($page-1) )
+                        ->take($limit);
 
         // Store in cache for next request
-        $cached = $this->cache->putPaginated($page, $limit, $paginated->getTotal(), $paginated->getItems(), $key);
+        $cached = $this->cache->putPaginated(
+            $page,
+            $limit,
+            $this->totalArticles($all),
+            $articles,
+            $key
+        );
 
         return $cached;
     }
@@ -145,16 +152,20 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
             return false;
         }
 
-        // Do our joining a little manually here to accomplish article ordering
-        // and to paginate results more easily
-        $paginated = $this->article->join('articles_tags', 'articles.id', '=', 'articles_tags.article_id')
-                            ->where('articles_tags.tag_id', $foundTag->id)
-                            ->where('articles.status_id', 1)
-                            ->orderBy('articles.created_at', 'desc')
-                            ->paginate($limit);
+        $articles = $this->tag->articles()
+                        ->where('articles.status_id', 1)
+                        ->orderBy('articles.created_at', 'desc')
+                        ->skip( $limit * ($page-1) )
+                        ->take($limit);
 
         // Store in cache for next request
-        $cached = $this->cache->put($page, $limit, $paginated->getTotal(), $paginated->getItems(), $key);
+        $cached = $this->cache->put(
+            $page,
+            $limit,
+            $this->totalByTag(),
+            $articles,
+            $key
+        );
 
         return $cached;
 
@@ -231,5 +242,35 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
         // Assign set tags to article
         $this->article->tags()->sync($tagIds);
     }
+
+    /**
+     * Get total article count
+     *
+     * @return int  Total articles
+     */
+    protected function totalArticles($all = false)
+    {
+        if( ! $all )
+        {
+            return $this->article->count();
+        }
+
+        return $this->article->where('status_id', 1)->count();
+    }
+
+    /**
+     * Get total article count per tag
+     *
+     * @param  string  $tag  Tag slug
+     * @return int     Total articles per tag
+     */
+    protected function totalByTag($tag)
+    {
+        return $this->tag->bySlug($tag)
+                    ->articles()
+                    ->where('status_id', 1)
+                    ->count();
+    }
+
 
 }
