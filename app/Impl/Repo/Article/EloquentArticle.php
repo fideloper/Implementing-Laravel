@@ -182,7 +182,7 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
     public function create(array $data)
     {
         // Create the article
-        $article = Article::create(array(
+        $article = $this->article->create(array(
             'user_id' => $data['user_id'],
             'status_id' => $data['status_id'],
             'title' => $data['title'],
@@ -230,10 +230,10 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
      * @param array  $tags
      * @return void
      */
-    protected function syncTags($article, $tags)
+    protected function syncTags(Model $article, array $tags)
     {
         // Create or add tags
-        $tags = $this->tag->findOrCreate( $data['tags'] );
+        $tags = $this->tag->findOrCreate( $tags );
 
         $tagIds = array();
         $tags->each(function($tag) use ($tagIds)

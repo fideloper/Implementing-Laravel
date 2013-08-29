@@ -67,14 +67,16 @@ class ArticleController extends BaseController {
      */
     public function store()
     {
-        if( $this->articeform->save( Input::all() ) )
+        $input = array_merge(Input::all(), array('user_id' => 1));
+
+        if( $this->articleform->save( $input ) )
         {
             // Success!
-            Redirect::to('admin/article')
+            return Redirect::to('/admin/article')
                     ->with('status', 'success');
         } else {
 
-            Redirect::to('admin/article/create')
+            return Redirect::to('/admin/article/create')
                     ->withInput()
                     ->withErrors( $this->articleform->errors() )
                     ->with('status', 'error');
@@ -109,12 +111,12 @@ class ArticleController extends BaseController {
         if( $this->articeform->update( Input::all() ) )
         {
             // Success!
-            Redirect::to('admin/article')
+            return Redirect::to('admin/article')
                     ->with('status', 'success');
         } else {
 
             // Need article ID
-            Redirect::to('admin/article/'.Input::get('id').'edit')
+            return Redirect::to('admin/article/'.Input::get('id').'edit')
                     ->withInput()
                     ->withErrors( $this->articleform->errors() )
                     ->with('status', 'error');
