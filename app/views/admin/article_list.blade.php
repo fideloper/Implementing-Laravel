@@ -14,7 +14,7 @@
       @foreach($articles as $article)
       <tr>
         <td>{{ $article->id }}</td>
-        <td>{{ $article->title }}</td>
+        <td><a href="/admin/article/{{ $article->id }}/edit">{{ $article->title }}</a></td>
         <td>{{ $article->status->status }}</td>
         <td>{{ $article->created_at }}</td>
         <td>{{ $article->updated_at }}</td>

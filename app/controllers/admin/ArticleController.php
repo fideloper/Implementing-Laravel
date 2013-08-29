@@ -53,8 +53,11 @@ class ArticleController extends BaseController {
      */
     public function create()
     {
+        $statuses = $this->status->all();
+
         $this->layout->content = View::make('admin.article_create', array(
-            'input' => Session::getOldInput()
+            'statuses' => $statuses,
+            'input' => Session::getOldInput(),
         ));
     }
 
