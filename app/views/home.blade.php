@@ -4,3 +4,6 @@
         {{ \Michelf\MarkdownExtra::defaultTransform($article->excerpt) }}
     </article>
 @endforeach
+    <div class="row">
+    {{ $articles->links() }}
+    </div>
