@@ -81,14 +81,15 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
         }
 
         $articles = $query->skip( $limit * ($page-1) )
-                        ->take($limit);
+                        ->take($limit)
+                        ->get();
 
         // Store in cache for next request
         $cached = $this->cache->putPaginated(
             $page,
             $limit,
             $this->totalArticles($all),
-            $articles,
+            $articles->all(),
             $key
         );
 
@@ -156,14 +157,15 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
                         ->where('articles.status_id', 1)
                         ->orderBy('articles.created_at', 'desc')
                         ->skip( $limit * ($page-1) )
-                        ->take($limit);
+                        ->take($limit)
+                        ->get();
 
         // Store in cache for next request
         $cached = $this->cache->put(
             $page,
             $limit,
             $this->totalByTag(),
-            $articles,
+            $articles->all(),
             $key
         );
 
