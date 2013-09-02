@@ -1,5 +1,4 @@
 <?php
-$_SERVER[ 'SERVER_PORT'] = 2202; // HAX!!!
 /**
  * Laravel - A PHP Framework For Web Artisans
  *

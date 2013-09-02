@@ -254,10 +254,10 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
     {
         if( ! $all )
         {
-            return $this->article->count();
+            return $this->article->where('status_id', 1)->count();
         }
 
-        return $this->article->where('status_id', 1)->count();
+        return $this->article->count();
     }
 
     /**
