@@ -9,6 +9,8 @@ class Tag extends Eloquent {
      */
     protected $table = 'tags';
 
+
+
     /**
      * The attributes that are mass assignable.
      *
@@ -20,13 +22,20 @@ class Tag extends Eloquent {
     );
 
     /**
+     * Indicates if the model should be timestamped.
+     *
+     * @var bool
+     */
+    public $timestamps = false;
+
+    /**
      * Define a many-to-many relationship.
      *
      * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
      */
     public function articles()
     {
-        return $this->belongsToMany('Article', 'articles_tags', 'article_id', 'tag_id');
+        return $this->belongsToMany('Article', 'articles_tags', 'tag_id', 'article_id');
     }
 
 }

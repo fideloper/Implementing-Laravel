@@ -1,6 +1,7 @@
 <?php namespace Impl\Repo\Article;
 
 use Impl\Repo\RepoAbstract;
+use Impl\Repo\Tag\TagInterface;
 use Impl\Service\Cache\CacheInterface;
 use Illuminate\Database\Eloquent\Model;
 
@@ -11,7 +12,7 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
     protected $cache;
 
     // Class expects an Eloquent model
-    public function __construct(Model $article, Model $tag, CacheInterface $cache)
+    public function __construct(Model $article, TagInterface $tag, CacheInterface $cache)
     {
         $this->article = $article;
         $this->tag = $tag;
@@ -233,16 +234,17 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
     protected function syncTags(Model $article, array $tags)
     {
         // Create or add tags
-        $tags = $this->tag->findOrCreate( $tags );
+        $found = $this->tag->findOrCreate( $tags );
 
         $tagIds = array();
-        $tags->each(function($tag) use ($tagIds)
+
+        foreach($found as $tag)
         {
             $tagIds[] = $tag->id;
-        });
+        }
 
         // Assign set tags to article
-        $this->article->tags()->sync($tagIds);
+        $article->tags()->sync($tagIds);
     }
 
     /**

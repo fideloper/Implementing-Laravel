@@ -44,6 +44,8 @@ class ArticleForm {
             return false;
         }
 
+        $input['tags'] = $this->processTags($input['tags']);
+
         return $this->article->create($input);
     }
 
@@ -58,6 +60,8 @@ class ArticleForm {
         {
             return false;
         }
+
+        $input['tags'] = $this->processTags($input['tags']);
 
         return $this->article->update($input);
     }
@@ -80,6 +84,25 @@ class ArticleForm {
     protected function valid(array $input)
     {
         return $this->validator->with($input)->passes();
+    }
+
+    /**
+     * Convert string of tags to
+     * array of tags
+     *
+     * @param  string
+     * @return array
+     */
+    protected function processTags($tags)
+    {
+        $tags = explode(',', $tags);
+
+        foreach( $tags as $key => $tag )
+        {
+            $tags[$key] = trim($tag);
+        }
+
+        return $tags;
     }
 
 }

@@ -24,7 +24,7 @@ class RepoServiceProvider extends ServiceProvider {
         {
             return new EloquentArticle(
                 new Article,
-                new Tag,
+                $app->make('Impl\Repo\Tag\TagInterface'),
                 new LaravelCache($app['cache'], 'articles', 10)
             );
         });
