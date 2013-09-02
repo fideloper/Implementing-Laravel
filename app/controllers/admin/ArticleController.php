@@ -92,7 +92,13 @@ class ArticleController extends BaseController {
         $article = $this->article->byId($id);
         $statuses = $this->status->all();
 
-        $tags = implode(', ', $article->tags->toArray());
+        $tags = '';
+        $article->tags->each(function($tag) use(&$tags)
+        {
+            $tags .= $tag->tag.', ';
+        });
+
+        $tags = substr($tags, 0, -2);
 
         $this->layout->content = View::make('admin.article_edit', array(
             'article' => $article,

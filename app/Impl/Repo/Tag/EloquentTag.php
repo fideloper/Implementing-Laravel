@@ -28,26 +28,31 @@ class EloquentTag extends RepoAbstract implements TagInterface {
 
         $returnTags = array();
 
-        foreach( $foundTags as $tag )
+        if( $foundTags )
         {
-            $pos = array_search($tag->tag, $tags)
-
-            // Add returned tags to array
-            if( $pos !== false )
+            foreach( $foundTags as $tag )
             {
-                $returnTags[] = $tag;
-                unset($tags[$pos]);
-            }
+                $pos = array_search($tag->tag, $tags);
 
-            // Add remainings tags as new
-            foreach( $tags as $tag )
-            {
-                $returnTags[] = $this->tag->create(array(
-                                    'tag' => $tag,
-                                    'slug' => $this->slug($tag),
-                                ));
+                // Add returned tags to array
+                if( $pos !== false )
+                {
+                    $returnTags[] = $tag;
+                    unset($tags[$pos]);
+                }
             }
         }
+
+        // Add remainings tags as new
+        foreach( $tags as $tag )
+        {
+            $returnTags[] = $this->tag->create(array(
+                                'tag' => $tag,
+                                'slug' => $this->slug($tag),
+                            ));
+        }
+
+        return $returnTags;
     }
 
 }
