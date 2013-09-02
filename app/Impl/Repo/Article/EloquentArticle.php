@@ -221,7 +221,7 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
 
         $this->syncTags($article, $data['tags']);
 
-        return $true;
+        return true;
     }
 
     /**

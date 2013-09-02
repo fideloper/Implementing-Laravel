@@ -114,7 +114,9 @@ class ArticleController extends BaseController {
      */
     public function update()
     {
-        if( $this->articeform->update( Input::all() ) )
+        $input = array_merge(Input::all(), array('user_id' => 1));
+
+        if( $this->articleform->update( $input ) )
         {
             // Success!
             return Redirect::to('admin/article')
@@ -122,7 +124,7 @@ class ArticleController extends BaseController {
         } else {
 
             // Need article ID
-            return Redirect::to('admin/article/'.Input::get('id').'edit')
+            return Redirect::to('admin/article/'.Input::get('id').'/edit')
                     ->withInput()
                     ->withErrors( $this->articleform->errors() )
                     ->with('status', 'error');

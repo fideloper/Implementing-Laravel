@@ -34,6 +34,7 @@
             </li>
         </ul>
         <input type="hidden" name="_method" value="PUT" />
+        <input type="hidden" name="id" value="{{ $article->id }}" />
         <div class="medium default btn"><input type="submit" value="Submit"></div>
     </form>
 </div>
