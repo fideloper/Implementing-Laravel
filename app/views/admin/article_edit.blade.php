@@ -1,4 +1,11 @@
 <div class="row">
+    @if( count($errors->all()) )
+    <ul>
+        @foreach ($errors->all() as $error)
+        <li class="danger alert">{{ $error }}</li>
+        @endforeach
+    </ul>
+    @endif
     <form action="/admin/article/{{ $article->id }}" method="post">
         <ul>
             <li class="field">
@@ -27,5 +34,7 @@
             </li>
         </ul>
         <input type="hidden" name="_method" value="PUT" />
+        <input type="hidden" name="id" value="{{ $article->id }}" />
+        <div class="medium default btn"><input type="submit" value="Submit"></div>
     </form>
 </div>
