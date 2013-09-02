@@ -2,7 +2,7 @@
     @if( count($errors->all()) )
     <ul>
         @foreach ($errors->all() as $error)
-        <li>{{ $error }}</li>
+        <li class="danger alert">{{ $error }}</li>
         @endforeach
     </ul>
     @endif
