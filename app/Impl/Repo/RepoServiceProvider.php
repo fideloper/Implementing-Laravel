@@ -20,7 +20,7 @@ class RepoServiceProvider extends ServiceProvider {
     {
         $app = $this->app;
 
-        $app->bind('Impl\Repo\Article\ArticleInterface', function() use($app)
+        $app->bind('Impl\Repo\Article\ArticleInterface', function($app)
         {
             return new EloquentArticle(
                 new Article,
@@ -29,7 +29,7 @@ class RepoServiceProvider extends ServiceProvider {
             );
         });
 
-        $app->bind('Impl\Repo\Tag\TagInterface', function() use($app)
+        $app->bind('Impl\Repo\Tag\TagInterface', function($app)
         {
             return new EloquentTag(
                 new Tag,
@@ -37,7 +37,7 @@ class RepoServiceProvider extends ServiceProvider {
             );
         });
 
-        $app->bind('Impl\Repo\Status\StatusInterface', function() use($app)
+        $app->bind('Impl\Repo\Status\StatusInterface', function($app)
         {
             return new EloquentStatus(
                 new Status

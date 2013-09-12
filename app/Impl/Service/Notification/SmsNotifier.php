@@ -1,4 +1,4 @@
-<?php Impl\Service\Notification;
+<?php namespace Impl\Service\Notification;
 
 use Services_Twilio;
 
@@ -30,7 +30,7 @@ class SmsNotifier implements NotifierInterface {
     /**
      * Recipients of notification
      * @param  string $to The recipient
-     * @return Impl\Service\Notificaton\SmsNotifier  $this  Return self for chainability
+     * @return Impl\Service\Notification\SmsNotifier  $this  Return self for chainability
      */
     public function to($to)
     {
@@ -42,7 +42,7 @@ class SmsNotifier implements NotifierInterface {
     /**
      * Sender of notification
      * @param  string $from The sender
-     * @return Impl\Service\Notificaton\NotifierInterface  $this  Return self for chainability
+     * @return Impl\Service\Notification\NotifierInterface  $this  Return self for chainability
      */
     public function from($from)
     {
@@ -53,13 +53,13 @@ class SmsNotifier implements NotifierInterface {
 
     public function notify($subject, $message)
     {
-        $this->twilio
+        $sms = $this->twilio
             ->account
             ->sms_messages
             ->create(
                 $this->from,
                 $this->to,
-                $this->subject."\n".$this->message
+                $subject."\n".$message
             );
     }
 
