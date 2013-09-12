@@ -15,7 +15,7 @@ class FormServiceProvider extends ServiceProvider {
     {
         $app = $this->app;
 
-        $app->bind('Impl\Service\Form\Article\ArticleForm', function() use ($app)
+        $app->bind('Impl\Service\Form\Article\ArticleForm', function($app)
         {
             return new ArticleForm(
                 new ArticleFormLaravelValidator( $app['validator'] ),

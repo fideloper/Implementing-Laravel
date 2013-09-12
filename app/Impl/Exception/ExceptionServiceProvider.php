@@ -5,20 +5,13 @@ use Illuminate\Support\ServiceProvider;
 class ExceptionServiceProvider extends ServiceProvider
 {
 
-    /**
-     * Indicates if loading of the provider is deferred.
-     *
-     * @var bool
-     */
-    protected $defer = true;
-
     public function register()
     {
         $app = $this->app;
 
-        $app['impl.exception'] = $app->share(function() use ($app)
+        $app['impl.exception'] = $app->share(function($app)
         {
-            return new NotifyHandler( $app['notification.sms'] );
+            return new NotifyHandler( $app['impl.notifier'] );
         });
     }
 

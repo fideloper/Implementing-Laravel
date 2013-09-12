@@ -116,6 +116,8 @@ return array(
 
 		'Impl\Repo\RepoServiceProvider',
 		'Impl\Service\Form\FormServiceProvider',
+		'Impl\Service\Notification\NotificationServiceProvider',
+		'Impl\Exception\ExceptionServiceProvider',
 
 
 	),

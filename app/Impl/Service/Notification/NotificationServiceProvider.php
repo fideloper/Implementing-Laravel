@@ -6,13 +6,6 @@ use Illuminate\Support\ServiceProvider;
 class NotificationServiceProvider extends ServiceProvider {
 
     /**
-     * Indicates if loading of the provider is deferred.
-     *
-     * @var bool
-     */
-    protected $defer = true;
-
-    /**
      * Register the service provider.
      *
      * @return void
@@ -21,7 +14,7 @@ class NotificationServiceProvider extends ServiceProvider {
     {
         $app = $this->app;
 
-        $app['notification.sms'] = $app->share(function() use ($app)
+        $app['impl.notifier'] = $app->share(function() use ($app)
         {
             $config = $app['config'];
 
@@ -37,6 +30,11 @@ class NotificationServiceProvider extends ServiceProvider {
 
             return $notifier;
         });
+    }
+
+    public function provides()
+    {
+        return array('impl.notifier');
     }
 
 }
