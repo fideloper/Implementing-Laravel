@@ -11,7 +11,10 @@
 |
 */
 
-Route::get('/', function()
+Route::get('/', 'ContentController@home');
+Route::get('/{slug}', 'ContentController@article');
+
+Route::group(array('prefix' => 'admin'), function()
 {
-	return View::make('hello');
+    Route::resource('article', 'ArticleController');
 });
