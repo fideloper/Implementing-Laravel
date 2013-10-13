@@ -6,6 +6,7 @@ use Article;
 use Impl\Repo\Tag\EloquentTag;
 use Impl\Service\Cache\LaravelCache;
 use Impl\Repo\Status\EloquentStatus;
+use Impl\Repo\Article\CacheDecorator;
 use Impl\Repo\Article\EloquentArticle;
 use Illuminate\Support\ServiceProvider;
 
@@ -22,9 +23,13 @@ class RepoServiceProvider extends ServiceProvider {
 
         $app->bind('Impl\Repo\Article\ArticleInterface', function($app)
         {
-            return new EloquentArticle(
+            $article =  new EloquentArticle(
                 new Article,
-                $app->make('Impl\Repo\Tag\TagInterface'),
+                $app->make('Impl\Repo\Tag\TagInterface')
+            );
+
+            return new CacheDecorator(
+                $article,
                 new LaravelCache($app['cache'], 'articles', 10)
             );
         });
