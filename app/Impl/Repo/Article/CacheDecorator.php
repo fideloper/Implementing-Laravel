@@ -4,12 +4,11 @@ use Impl\Service\Cache\CacheInterface;
 
 class CacheDecorator extends AbstractArticleDecorator {
 
-    protected $nextArticle;
     protected $cache;
 
-    public function __construct(ArticleInterface $article, CacheInterface $cache)
+    public function __construct(ArticleInterface $nextArticle, CacheInterface $cache)
     {
-        $this->nextArticle = $article;
+        parent::__construct($nextArticle);
         $this->cache = $cache;
     }
 
@@ -105,24 +104,6 @@ class CacheDecorator extends AbstractArticleDecorator {
         );
 
         return $cached;
-    }
-
-    /**
-     * Pass creation of article thru
-     * {@inheritdoc}
-     */
-    public function create(array $data)
-    {
-        return $this->nextArticle->byId($data);
-    }
-
-    /**
-     * Pass update of article thru
-     * {@inheritdoc}
-     */
-    public function update(array $data)
-    {
-        return $this->nextArticle->update($data);
     }
 
 }
