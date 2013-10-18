@@ -42,6 +42,12 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
      */
     public function byPage($page=1, $limit=10, $all=false)
     {
+        $result = new \StdClass;
+        $result->page = $page;
+        $result->limit = $limit;
+        $result->totalItems = 0;
+        $result->items = array();
+
         $query = $this->article->with('status')
                                ->with('author')
                                ->with('tags')
@@ -52,9 +58,14 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
             $query->where('status_id', 1);
         }
 
-        return $query->skip( $limit * ($page-1) )
+        $articles = $query->skip( $limit * ($page-1) )
                         ->take($limit)
                         ->get();
+
+        $result->totalItems = $this->totalArticles($all);
+        $result->items = $articles->all();
+
+        return $result;
     }
 
     /**
@@ -84,18 +95,28 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
     {
         $foundTag = $this->tag->where('slug', $tag)->first();
 
+        $result = new \StdClass;
+        $result->page = $page;
+        $result->limit = $limit;
+        $result->totalItems = 0;
+        $result->items = array();
+
         if( !$foundTag )
         {
-            // Likely an error, return no tags
-            return false;
+            return $result;
         }
 
-        return $this->tag->articles()
+        $articles = $this->tag->articles()
                         ->where('articles.status_id', 1)
                         ->orderBy('articles.created_at', 'desc')
                         ->skip( $limit * ($page-1) )
                         ->take($limit)
                         ->get();
+
+        $result->totalItems = $this->totalArticles($all);
+        $result->items = $articles->all();
+
+        return $result;
     }
 
     /**
@@ -178,7 +199,7 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
      *       Perhaps interface it?
      * @return int  Total articles
      */
-    public function totalArticles($all = false)
+    protected function totalArticles($all = false)
     {
         if( ! $all )
         {
@@ -196,7 +217,7 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
      * @param  string  $tag  Tag slug
      * @return int     Total articles per tag
      */
-    public function totalByTag($tag)
+    protected function totalByTag($tag)
     {
         return $this->tag->bySlug($tag)
                     ->articles()

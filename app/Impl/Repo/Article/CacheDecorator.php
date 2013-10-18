@@ -47,17 +47,11 @@ class CacheDecorator extends AbstractArticleDecorator {
             return $this->cache->get($key);
         }
 
-        $articles = $this->nextArticle->byPage($page, $limit);
+        $paginated = $this->nextArticle->byPage($page, $limit);
 
-        $cached = $this->cache->putPaginated(
-            $page,
-            $limit,
-            $this->nextArticle->totalArticles($all),
-            $articles->all(),
-            $key
-        );
+        $this->cache->put($key, $paginated);
 
-        return $cached;
+        return $paginated;
     }
 
     /**
@@ -93,17 +87,11 @@ class CacheDecorator extends AbstractArticleDecorator {
             return $this->cache->get($key);
         }
 
-        $articles = $this->nextArticle->byId($tag, $page, $limit);
+        $paginated = $this->nextArticle->byId($tag, $page, $limit);
 
-        $cached = $this->cache->put(
-            $page,
-            $limit,
-            $this->nextArticle->totalByTag($tag),
-            $articles->all(),
-            $key
-        );
+        $this->cache->put($key, $paginated);
 
-        return $cached;
+        return $paginated;
     }
 
 }
