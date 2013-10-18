@@ -13,7 +13,12 @@
 
 App::before(function($request)
 {
-	//
+	if( $request->segment(1) === 'admin' )
+    {
+        Config::set("is_admin", true);
+    } else {
+        Config::set("is_admin", false);
+    }
 });
 
 

@@ -28,10 +28,16 @@ class RepoServiceProvider extends ServiceProvider {
                 $app->make('Impl\Repo\Tag\TagInterface')
             );
 
-            return new CacheDecorator(
-                $article,
-                new LaravelCache($app['cache'], 'articles', 10)
-            );
+            if( $app['config']->get('is_admin', false) == false )
+            {
+                $article = new CacheDecorator(
+                    $article,
+                    new LaravelCache($app['cache'], 'articles', 10)
+                );
+            }
+
+            return $article;
+
         });
 
         $app->bind('Impl\Repo\Tag\TagInterface', function($app)
