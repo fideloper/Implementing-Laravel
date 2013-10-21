@@ -113,7 +113,7 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
                         ->take($limit)
                         ->get();
 
-        $result->totalItems = $this->totalArticles($all);
+        $result->totalItems = $this->totalByTag();
         $result->items = $articles->all();
 
         return $result;
