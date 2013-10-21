@@ -2,21 +2,18 @@
 
 use Impl\Repo\RepoAbstract;
 use Impl\Repo\Tag\TagInterface;
-use Impl\Service\Cache\CacheInterface;
 use Illuminate\Database\Eloquent\Model;
 
 class EloquentArticle extends RepoAbstract implements ArticleInterface {
 
     protected $article;
     protected $tag;
-    protected $cache;
 
     // Class expects an Eloquent model
-    public function __construct(Model $article, TagInterface $tag, CacheInterface $cache)
+    public function __construct(Model $article, TagInterface $tag)
     {
         $this->article = $article;
         $this->tag = $tag;
-        $this->cache = $cache;
     }
 
     /**
@@ -28,25 +25,11 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
      */
     public function byId($id)
     {
-        // Build the cache key, unique per article slug
-        $key = md5('id.'.$id);
-
-        if( $this->cache->has($key) )
-        {
-            return $this->cache->get($key);
-        }
-
-        // Item not cached, retrieve it
-        $article = $this->article->with('status')
-                            ->with('author')
-                            ->with('tags')
-                            ->where('id', $id)
-                            ->first();
-
-        // Store in cache for next request
-        $this->cache->put($key, $article);
-
-        return $article;
+        return $this->article->with('status')
+                ->with('author')
+                ->with('tags')
+                ->where('id', $id)
+                ->first();
     }
 
     /**
@@ -59,23 +42,17 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
      */
     public function byPage($page=1, $limit=10, $all=false)
     {
-        // Build our cache item key, unique per page number,
-        // limit and if we're showing all
-        $allkey = ($all) ? '.all' : '';
-        $key = md5('page.'.$page.'.'.$limit.$allkey);
+        $result = new \StdClass;
+        $result->page = $page;
+        $result->limit = $limit;
+        $result->totalItems = 0;
+        $result->items = array();
 
-        if( $this->cache->has($key) )
-        {
-            return $this->cache->get($key);
-        }
-
-        // Item not cached, retrieve it
         $query = $this->article->with('status')
                                ->with('author')
                                ->with('tags')
                                ->orderBy('created_at', 'desc');
 
-        // All posts or only published
         if( ! $all )
         {
             $query->where('status_id', 1);
@@ -85,16 +62,10 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
                         ->take($limit)
                         ->get();
 
-        // Store in cache for next request
-        $cached = $this->cache->putPaginated(
-            $page,
-            $limit,
-            $this->totalArticles($all),
-            $articles->all(),
-            $key
-        );
+        $result->totalItems = $this->totalArticles($all);
+        $result->items = $articles->all();
 
-        return $cached;
+        return $result;
     }
 
     /**
@@ -105,27 +76,12 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
      */
     public function bySlug($slug)
     {
-        // Build the cache key, unique per article slug
-        $key = md5('slug.'.$slug);
-
-        if( $this->cache->has($key) )
-        {
-            return $this->cache->get($key);
-        }
-
-        // Item not cached, retrieve it
-        $article = $this->article->with('status')
+        return $this->article->with('status')
                             ->with('author')
                             ->with('tags')
                             ->where('slug', $slug)
                             ->where('status_id', 1)
                             ->first();
-
-        // Store in cache for next request
-        $this->cache->put($key, $article);
-
-        return $article;
-
     }
 
    /**
@@ -137,21 +93,17 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
      */
     public function byTag($tag, $page=1, $limit=10)
     {
-        // Build our cache item key, unique per tag, page number and limit
-        $key = md5('tag.'.$tag.'.'.$page.'.'.$limit);
-
-        if( $this->cache->has($key) )
-        {
-            return $this->cache->get($key);
-        }
-
-        // Item not cached, retrieve it
         $foundTag = $this->tag->where('slug', $tag)->first();
+
+        $result = new \StdClass;
+        $result->page = $page;
+        $result->limit = $limit;
+        $result->totalItems = 0;
+        $result->items = array();
 
         if( !$foundTag )
         {
-            // Likely an error, return no tags
-            return false;
+            return $result;
         }
 
         $articles = $this->tag->articles()
@@ -161,17 +113,10 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
                         ->take($limit)
                         ->get();
 
-        // Store in cache for next request
-        $cached = $this->cache->put(
-            $page,
-            $limit,
-            $this->totalByTag(),
-            $articles->all(),
-            $key
-        );
+        $result->totalItems = $this->totalByTag();
+        $result->items = $articles->all();
 
-        return $cached;
-
+        return $result;
     }
 
     /**
@@ -250,6 +195,8 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
     /**
      * Get total article count
      *
+     * @todo I hate that this is public for the decorators.
+     *       Perhaps interface it?
      * @return int  Total articles
      */
     protected function totalArticles($all = false)
@@ -265,6 +212,8 @@ class EloquentArticle extends RepoAbstract implements ArticleInterface {
     /**
      * Get total article count per tag
      *
+     * @todo I hate that this is public for the decorators
+     *       Perhaps interface it?
      * @param  string  $tag  Tag slug
      * @return int     Total articles per tag
      */
