@@ -87,7 +87,7 @@ class CacheDecorator extends AbstractArticleDecorator {
             return $this->cache->get($key);
         }
 
-        $paginated = $this->nextArticle->byId($tag, $page, $limit);
+        $paginated = $this->nextArticle->byTag($tag, $page, $limit);
 
         $this->cache->put($key, $paginated);
 
