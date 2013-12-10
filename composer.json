@@ -37,5 +37,9 @@
 	"config": {
 		"preferred-install": "dist"
 	},
-	"minimum-stability": "dev"
+	"minimum-stability": "dev",
+	"require-dev": {
+        "mockery/mockery": "0.8.0",
+        "phpunit/phpunit": "3.7.*"
+    }
 }
