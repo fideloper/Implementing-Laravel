@@ -10,6 +10,9 @@ class NotifyHandlerTest extends PHPUnit_Framework_TestCase {
     }
 
     /**
+     * Make sure we get an exception when the provided exception
+     * is not an instance of ImplException
+     *
      * @expectedException Exception
      */
     public function testHandlerOnlyHandlesImplException()
@@ -21,6 +24,11 @@ class NotifyHandlerTest extends PHPUnit_Framework_TestCase {
         $notifyHandler->handle( $wrongExceptionType );
     }
 
+    /**
+     * Make sure our class calls the notifier dependency,
+     * which will have a "notify" method on it.
+     *
+     */
     public function testHandlerCallsNotifier()
     {
         $mockNotifier = $this->getMockNotifier();
