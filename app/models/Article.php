@@ -57,7 +57,7 @@ class Article extends Eloquent {
      */
     public function tags()
     {
-        return $this->belongsToMany('Tag', 'articles_tags', 'article_id', 'tag_id');
+        return $this->belongsToMany('Tag', 'articles_tags', 'article_id', 'tag_id')->withTimestamps();
     }
 
 }
