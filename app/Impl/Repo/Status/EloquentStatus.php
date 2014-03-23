@@ -33,12 +33,12 @@ class EloquentStatus extends RepoAbstract implements StatusInterface {
 
     /**
      * Get specific status
-     * @param  int $id Status slug
+     * @param  string $slug Status slug
      * @return object  Status object
      */
-    public function byStatus($status)
+    public function byStatus($slug)
     {
-        return $this->status->where('slug', $status);
+        return $this->status->where('slug', $slug);
     }
 
 }
