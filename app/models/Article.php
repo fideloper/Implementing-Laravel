@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Database\Eloquent\SoftDeletingTrait;
+
 class Article extends Eloquent {
 
     /**
@@ -24,11 +26,10 @@ class Article extends Eloquent {
     );
 
     /**
-     * Indicates if the model should soft delete.
+     * Enable soft delete.
      *
-     * @var bool
      */
-    protected $softDelete = true;
+    use SoftDeletingTrait;
 
     /**
      * Define a one-to-one relationship.
