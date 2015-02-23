@@ -15,7 +15,7 @@ class ArticleForm {
     /**
      * Validator
      *
-     * @var \Impl\Form\Service\ValidableInterface
+     * @var \Impl\Service\Validation\ValidableInterface;
      */
     protected $validator;
 
