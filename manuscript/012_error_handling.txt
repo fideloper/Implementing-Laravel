@@ -1,0 +1,201 @@
+# Error Handling
+
+What response a user sees as the result of a request is driven by Laravel. Laravel acts as the intermediary between our application code and an HTTP request, and so has the responsibility of generating the response to a request. Our application merely supplies Laravel with the data to respond with.
+
+Going further, how Laravel responds to *errors* depends on the context. Laravel is making requests on our application and returning a representation of the application's response. In a browser, an HTML representation is returned. In an API call, a JSON object might be returned. Lastly, in a CLI call, a plain-text response may be most appropriate.
+
+To that end, there really isn't a need to do a lot of extra work for error handling. We can intercept errors and decide how to show them (or not) to the user using Laravel's built-in mechanisms.
+
+However, there is the issue of business logic errors. You may need to handle your errors within your business logic separately from Laravel-specific errors. For example, you may need to be alerted about failures in a process important to your application, while finding it safe to ignore most 404 HTTP errors.
+
+In this chapter, we'll see how we can set your application up to throw certain Exceptions and use a custom error handler to perform any needed actions.
+
+Specifically, we'll cover how to catch business-logic exceptions and send a notification as a result.
+
+---
+
+### What is Error Handling?
+
+Error handling is, rather obviously, how your application responds to an error.
+
+There are two main things to consider when handling an error:
+
+1. Taking action on the error
+2. Displaying a meaningful response about the error
+
+Taking action on an error usually involves logging and alerting. You want a log of any error so that they can be audited and for debugging. You may also need some sort of alert mechanism for severe errors which stop critical business logic from performing.
+
+Displaying a meaningful response is, as mentioned, all about context. In development, we want errors to display to the developer. If they are using a console, a console-readable error is appropriate. If they are using a browser, then a browser-based error response is appropriate. If we are in production, then a "friendly" error response is appropriate for our users.
+
+### How Laravel Handles Errors
+
+Laravel uses the [Chain of Responsibility Pattern](http://en.wikipedia.org/wiki/Chain-of-responsibility_pattern) for handling errors. What this means for error handling is that Laravel will send any Exception to each registered error handler (in order of registration) until a handler successfully "handles" the error. In Laravel, an error is considered "handled" when it returns any non-null value.
+
+This gives you the opportunity to actually capture a specific Exception, handle it in any way (perhaps logging it), and then letting Laravel pass the Exception off to a handler which ultimately chooses what to display to the end-user (if anything is presented at all).
+
+### Setting Up Laravel to Respond to Errors
+
+As we have discussed, Laravel should be ultimately responsible for the display of errors. To do so, I put any error handle returning a response in the `routes.php` file, essentially treating it like a defined route.
+
+The trick here is to decide when to show an error and when to display something "friendly" to a user.
+
+{title="File: app/routes.php", lang=php}
+    /*
+        With error handling, you should define your least specific errors first.
+
+        In the example below, an incorrect URL will be handled by the
+	type-hinted `NotFoundHttpException` handler first, then by the generic
+	`Exception` handler.
+
+	Reversing the order of these will result in the `NotFoundHttpException`
+	handler being skipped when debugging is off!
+    */
+
+    use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+
+    // Other Exceptions
+    App::error(function(\Exception $e)
+    {
+
+        if( Config::get('app.debug') === true )
+        {
+            return null; // Fallback to Laravel's error handler
+        }
+
+        return View::make('error');
+
+    });
+
+    // 404
+    App::error(function(NotFoundHttpException $e)
+    {
+
+        if( Config::get('app.debug') === true )
+        {
+            return null; // Fallback to Laravel's error handler
+        }
+
+        return View::make('404');
+
+    });
+
+Note that what order you define the errors matters. Laravel will roll through each error handler until a (non-null) response is returned, and so you want your most-specific errors defined last. Above, we see the `NotFoundHttpException` registered *after* the generic `Exception` handler because we want any "not found" error to be handled in a specific way before the generic exception handler gets to it.
+
+### Setting Up Our Application to Respond to Errors
+
+So, now that we can handle errors shown to web users, let's decide how to handle errors coming from our application code.
+
+First, we'll define an interface. We already know that we want to “handle” an error, so we’ll start there:
+
+{title="File: app/Impl/Exception/HandlerInterface.php", lang=php}
+	<?php namespace Impl\Exception;
+
+	interface HandlerInterface {
+
+		/**
+		 * Handle Impl Exceptions
+		 *
+		 * @param \Impl\Exception\ImplException
+		 * @return void
+		 */
+		public function handle(ImplException $exception);
+
+	}
+
+So, any error handler will "handle" an exception - and not just any, but a `ImplException` and its subclasses.
+
+Let's define that base exception as well. This will be used as the base class for any app-specific exceptions thrown.
+
+{title="File: app/Impl/Exception/ImplException.php", lang=php}
+	<?php namespace Impl\Exception;
+
+	class ImplException extends \Exception {}
+
+Now we can decide what we want our handler to do. Let's say for a specific exception, we want our application to notify us of the error.
+
+#### Implementation
+
+Since we have a `HandlerInterface`, the next step is to create an implementation of it. We want it to notify us of an error, so we'll call it `NotifyHandler`.
+
+{title="File: app/Impl/Exception/NotifyHandler.php", lang=php}
+    <?php namespace Impl\Exception;
+
+    use Impl\Service\Notification\NotifierInterface;
+
+    class NotifyHandler implements HandlerInterface {
+
+        protected $notifier;
+
+        public function __construct(NotifierInterface $notifier)
+        {
+            $this->notifier = $notifier;
+        }
+
+        /**
+         * Handle Impl Exceptions
+         *
+         * @param \Impl\Exception\ImplException
+         * @return void
+         */
+        public function handle(ImplException $exception)
+        {
+            $this->sendException($exception);
+        }
+
+        /**
+         * Send Exception to notifier
+         * @param  \Exception $exception Send notification of exception
+         * @return void
+         */
+        protected function sendException(\Exception $e)
+        {
+            $this->notifier->notify('Error: '.get_class($e), $e->getMessage());
+        }
+
+    }
+
+Now we have a class to notify us of an exception! Our last step is to set this as a handler for our application Exceptions.
+
+W> You may have noticed there is a dependency on this implementation. For now we can assume that the `NotifierInterface` class, whose implementation is not shown here, is a class which will send us an alert of some kind. In the next chapter, we'll cover using a third-party library which will be used to send notifications.
+
+### Putting it Together.
+
+Our last step is to use this error handler when a `ImplException` (or subclass) is thrown. For that, we use Laravel's error handling capabilities.
+
+{title="File: app/Impl/Exception/ExceptionServiceProvider.php", lang=php}
+	<?php namespace Impl\Exception;
+
+	use Illuminate\Support\ServiceProvider;
+
+	class ExceptionServiceProvider extends ServiceProvider
+	{
+		public function register()
+		{
+			$app = $this->app;
+
+			// Bind our app's exception handler
+			$app['impl.exception'] = $app->share(function($app)
+			{
+				return new NotifyHandler( $app['impl.notifier'] );
+			});
+		}
+
+		public function boot()
+		{
+			$app = $this->app;
+
+			// Register error handler with Laravel
+			$app->error(function(ImplException $e) use ($app)
+			{
+				$app['impl.exception']->handle($e);
+			});
+		}
+	}
+
+What's happening here? First, the `register` method registers `impl.exception` as the error handler for our application.
+
+Then the `boot()` method uses Laravel's built-in error handling and registers our `impl.exception` handler for any exception raised of base class `ImplException`.
+
+Now, when any `ImplException` is thrown, our handler will capture it and handle the error. Since we are not returning a `Response` from our handler, Laravel will continue to cycle through it's own error handlers, which we can utilize to return an appropriate response back to the end-user.
+
+W> Here again we see that we're using `$app['impl.notifier']`, which is not yet defined in our application. In the next chapter, we'll cover using a third-party library to send the notifications.

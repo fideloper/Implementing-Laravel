@@ -1,0 +1,308 @@
+# Validation as a Service
+
+Validation and form processing is a tedious, constantly recreated wheel. Because forms and user input are so often at the heart of an application's business logic, their needs promise to always change from project to project.
+
+Here we will discuss an attempt to make validation less painful.
+
+## What Is It?
+
+Validation "as a service" describes moving your validation logic into a "service" which your application can use. Similar to how we started with a database repository and added a "caching service" onto it, we can start with a form and add a "validation service".
+
+## Why Do We Use It?
+
+The goal of adding validation as a service is simply to keep a separation of concerns, while writing testable code. Lastly, we also want to make creating form validation super-easy. In this chapter, we'll create an extendable validation base class which we can use for each form. Then we'll see that in use in a controller.
+
+In the next chapter, we'll get fancier by taking the validation completely away from the controller, and into a form-processor.
+
+Let's start simple.
+
+## Example
+
+### The Situation
+
+Here's some validation we might find in a controller. Let's say we need to validate user input when creating a new article in the admin area of our example blog:
+
+{title="A Resourceful controller", lang=php}
+	<?php
+
+	class ArticleController extends BaseController {
+
+		// GET /article/create
+		public function create()
+		{
+			return View::make('admin.article_create', array(
+				'input' => Input::old()
+			));
+		}
+
+		// POST /article
+		public function store()
+		{
+			$input = Input::all();
+			$rules = array(
+				'title' => 'required',
+				'user_id' => 'required|exists:users,id',
+				'status_id' => 'required|exists:statuses,id',
+				'excerpt' => 'required',
+				'content' => 'required',
+				'tags' => 'required',
+			)
+
+			$validator = Validator::make($input, $rules);
+
+			if( ! $validator->fails() )
+			{
+				// OMITTED - CREATING NEW ARTICLE CODE
+			} else {
+				return View::make('admin.article_create')
+						->withInput($input)
+						->withErrors($validator->getErrors());
+			}
+		}
+
+	}
+
+As you can see, we have all this *stuff* in our controller to validate user input, and the above example doesn't even show the code actually processing the form! Additionally, what if we need the same validation rules for updating the article? We'd have to repeat code in our update method.
+
+In an effort to make the controller skinnier and make our code more reusable and testable, let's see how to move validation out of our controllers.
+
+## Restructuring
+
+We'll turn to our `Impl` application library as always. Validation is treated as a **Service** to our application and so we'll create our Validation code under the `Impl\Service` namespace. Here's what we'll see in there:
+
+	app
+	|- Impl
+	|- [ . . . ]
+	|--- Service
+	|------ Validation
+	|--------- AbstractLaravelValidator.php
+	|--------- ValidableInterface.php
+
+### The Interface
+
+We'll start, as we usually do, by creating an interface. What methods will our controllers be using on our validation class?
+
+We know we'll need to gather input, test input validity and retrieve error messages. Let's start with those needs:
+
+{title="File: app/Impl/Service/Validation/ValidableInterface.php", lang=php}
+	<?php namespace Impl\Service\Validation;
+
+	interface ValidableInterface {
+
+		/**
+		 * Add data to validation against
+		 *
+		 * @param array
+		 * @return \Impl\Service\Validation\ValidableInterface
+		 */
+		public function with(array $input);
+
+		/**
+		 * Test if validation passes
+		 *
+		 * @return boolean
+		 */
+		public function passes();
+
+		/**
+		 * Retrieve validation errors
+		 *
+		 * @return array
+		 */
+		public function errors();
+
+	}
+
+So, any validation class used in our application should implement this interface. From this, we can see how we'll invoke an implementation of it - likely something like this:
+
+	// Somewhere in your code
+	if( ! $validator->with($input)->passes() )
+	{
+		return $validator->errors();
+	}
+
+### An Abstraction
+
+Now, usually after an interface we can go straight into creating concrete implementations of it. We'll do that, but before we do, we're going to add one more layer.
+
+Validation is a service where it might make sense to generalize. We're going to make an abstract class which uses the Laravel Validator and can then be extended and modified to be easily used in any form. Once done, we'll be able to extend this abstract class, change a few parameters, and be on our way for any validation scenario.
+
+Our abstract class will implement our interface and use Laravel's validator library:
+
+{title="File: app/Imple/Service/Validation/AbstractLaravelValidator.php", lang=php}
+	<?php namespace Impl\Service\Validation;
+
+	use Illuminate\Validation\Factory as Validator;
+
+	abstract class AbstractLaravelValidator implements ValidableInterface {
+
+        /**
+         * Validator
+         *
+         * @var \Illuminate\Validation\Factory
+         */
+        protected $validator;
+
+        /**
+         * Validation data key => value array
+         *
+         * @var Array
+         */
+        protected $data = array();
+
+        /**
+         * Validation errors
+         *
+         * @var Array
+         */
+        protected $errors = array();
+
+        /**
+         * Validation rules
+         *
+         * @var Array
+         */
+        protected $rules = array();
+
+        /**
+         * Custom validation messages
+         *
+         * @var Array
+         */
+        protected $messages = array();
+
+        public function __construct(Validator $validator)
+        {
+            $this->validator = $validator;
+        }
+
+        /**
+         * Set data to validate
+         *
+         * @return \Impl\Service\Validation\AbstractLaravelValidation
+         */
+        public function with(array $data)
+        {
+            $this->data = $data;
+
+            return $this;
+        }
+
+        /**
+         * Validation passes or fails
+         *
+         * @return Boolean
+         */
+        public function passes()
+        {
+            $validator = $this->validator->make(
+                $this->data,
+                $this->rules, 
+                $this->messages
+            );
+
+            if( $validator->fails() )
+            {
+                $this->errors = $validator->messages();
+                return false;
+            }
+
+            return true;
+        }
+
+        /**
+         * Return errors, if any
+         *
+         * @return array
+         */
+        public function errors()
+        {
+            return $this->errors;
+        }
+
+	}
+
+Next, we'll see how we can simply extend this class to meet the needs for any input validation.
+
+#### Implementation
+
+Let's create a validator class for the example at the beginning of this chapter:
+
+{title="File: app/Impl/Service/Validation/ArticleFormValidator.php", lang=php}
+	<?php namespace Impl\Service\Validation;
+
+	class ArticleFormValidator extends AbstractLaravelValidator {
+
+        /**
+         * Validation rules
+         *
+         * @var Array
+         */
+        protected $rules = array(
+            'title' => 'required',
+            'user_id' => 'required|exists:users,id',
+            'status_id' => 'required|exists:statuses,id',
+            'excerpt' => 'required',
+            'content' => 'required',
+            'tags' => 'required',
+        );
+
+        /**
+         * Validation messages
+         *
+         * @var Array
+         */
+        protected $messages = array(
+            'user_id.exists' => 'That user does not exist',
+            'status_id.exists' => 'That status does not exist',
+        );
+
+    }
+
+That's it! Let's see this in action back in our controller:
+
+{title="A Resourceful controller", lang=php}
+	<?php
+
+	use Impl\Service\Validation\ArticleLaravelValidator;
+
+	class ArticleController extends BaseController {
+
+		// Class Dependency: Concrete class ArticleLaravelValidator
+		// Note that Laravel resolves this for us
+		// We will not need a Service Provider
+		public function __construct(ArticleLaravelValidator $validator)
+		{
+			$this->validator = $validator;
+		}
+
+		// GET /article/create
+		public function create()
+		{
+			return View::make('admin.article_create', array(
+				'input' => Input::old()
+			));
+		}
+
+		// POST /article
+		public function store()
+		{
+			if( $this->validator->with( Input::all() )->passes() )
+			{
+				// FORM PROCESSING
+			} else {
+				return View::make('admin.article_create')
+						->withInput( Input::all() )
+						->withErrors($this->validator->errors());
+			}
+		}
+
+	}
+
+## What Did We Gain?
+
+We were able to make our controllers a bit skinnier by taking out the boiler-plate validation and moving it off into our application library.
+
+Additionally, we created a very reusable abstract class. For any new form, we can extend this abstract class, define our rules, and be done with it!
+
+Up next we'll see how we can get even more stream-lined by moving all of the form processing out of the controller altogether.

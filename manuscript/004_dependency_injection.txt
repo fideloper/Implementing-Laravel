@@ -1,0 +1,279 @@
+# Dependency Injection
+
+Now that we see how the container works, let's see how we can use it to implement Dependency Injection in Laravel.
+
+## What is Dependency Injection?
+
+Dependency Injection is the act of adding (injecting) any dependencies into a class, rather than instantiating them somewhere within the class code itself. Often, dependencies are defined as type-hinted parameters of a constructor method. 
+
+Take this constructor method, for example:
+
+    public function __construct(HelloWorld $greeter)
+    {
+        $this->greeter = $greeter;
+    }
+
+By type-hinting `HelloWorld` as a parameter, we're explicitly stating that an instance of `HelloWorld` is a class dependency.
+
+This is opposite of direct instantiation:
+
+    public function __construct()
+    {
+        $this->greeter = new HelloWorld;
+    }
+
+W> If you find yourself asking *why* Dependency Injection is used, [this Stack Overflow answer](http://stackoverflow.com/questions/130794/what-is-dependency-injection) is a great place to start. I'll cover some benefits of it in the following examples.
+
+Next, we'll see an example of Dependency Injection in action, using Laravel's IoC container.
+
+## Adding Controller Dependencies
+
+This is a very common use case within Laravel.
+
+Normally, if we set a controller to expect a class in its constructor method, we also need to add those dependencies when the class is created. However, what happens when you define a dependency on a Laravel controller? We would need to instantiate the controller somewhere ourselves:
+
+    $crtl = new ContainerController( new HelloWorld );
+
+That's great, but we don't directly instantiate a controller within Laravel - the router handles it for us.
+
+We can still, however, inject controller dependencies with the use of Laravel's IoC container!
+ 
+Keeping the same `GreetableInterface` and `HelloWorld` classes from before, let's now imagine we bind our `/container` route to a controller:
+
+{title="File: app/routes.php", lang=php}
+    interface GreetableInterface {
+
+        public function greet();
+
+    }
+
+    class HelloWorld implements GreetableInterface {
+
+        public function greet()
+        {
+            return 'Hello, World!';
+        }
+    }
+
+    Route::get('/container', 'ContainerController@container');
+
+Now in our new controller, we can set `HelloWorld` as a parameter in the constructor method:
+
+{title="File: app/controllers/ContainerController.php", lang=php}
+    <?php
+
+    class ContainerController extends BaseController {
+
+        protected $greeter;
+
+        // Class dependency: HelloWorld
+        public function __construct(HelloWorld $greeter)
+        {
+            $this->greeter = $greeter;
+        }
+
+        public function container()
+        {
+            return $this->greeter->greet();
+        }
+
+    }
+
+Now head to your `/container` route and you should, once again, see:
+
+	Hello, World!
+
+Note, however, that we did NOT bind anything to the container. It simply "just worked" - an instance of `HelloWorld` was passed to the controller!
+
+This is because the IoC container will automatically attempt to resolve any dependency set in the constructor method of a controller. Laravel will inject specified dependencies for us!
+
+## Interfaces as Dependencies
+
+We're not done, however. Here is what we're building up to!
+
+What if, instead of specifying `HelloWorld` as the controller's dependency, we specified the interface `GreetableInterface`? 
+
+Let's see what that would look like:
+
+{title="File: app/controllers/ContainerController.php", lang=php}
+    <?php
+
+    class ContainerController extends BaseController {
+
+        protected $greeter;
+
+        // Class dependency: GreetableInterface
+        public function __construct(GreetableInterface $greeter)
+        {
+            $this->greeter = $greeter;
+        }
+
+        public function container()
+        {
+            echo $this->greeter->greet();
+        }
+
+    }
+
+If we try to run this as-is, we'll get an error:
+
+	Illuminate\Container\BindingResolutionException: 
+	Target [GreetableInterface] is not instantiable
+
+The class `GreetableInterface` is of course not instantiable, as it is an interface. We can see, however, that Laravel is attempting to instantiate it in order to resolve the class dependency.
+
+Let's fix that - when the container sees that our controller depends on an instance of `GreetableInterface`, we'll use the container's `bind()` method to tell Laravel to give the controller and instance of `HelloWorld`:
+
+{title="File: app/routes.php", lang=php}
+    interface GreetableInterface {
+
+        public function greet();
+
+    }
+
+    class HelloWorld implements GreetableInterface {
+
+        public function greet()
+        {
+            return 'Hello, World!';
+        }
+    }
+    
+    // Binding HelloWorld when asked for
+    // GreetableInterface here!!
+    App::bind('GreetableInterface', 'HelloWorld');
+
+    Route::get('/container', 'ContainerController@container');
+
+Now re-run your `/container` route, you'll see `Hello, World!` once again!
+
+T> Note that I didn't use a closure to bind `HelloWorld` - You can simply pass the concrete class name as a string if you wish. A closure is useful when your implementation has its own dependencies that need to be passed into its constructor method.
+
+## Why Dependency Injection?
+
+Why would we want to specify an interface as a dependency instead of a concrete class?
+
+We want to because we need any class dependency given to the constructor to be a subclass of an interface. In this way, we can safely use any implementation - the method we need will always be available.
+
+Put succinctly, **we can change the implementation at will, without effecting other portions of our application code.**
+
+Here's an example. It's something I've had to do many times in real applications. 
+
+W> Don't copy and paste this example. I'm omitting some details, such as using configuration variables for API keys, to clarify the point.
+
+Let's say our application sends emails using Amazon's AWS. To accomplish this, we have defined an `Emailer` interface and an implementing class `AwsEmailer`:
+
+{lang=php}
+    interface Emailer {
+
+        public function send($to, $from, $subject, $message);
+    }
+
+    class AwsEmailer implements Emailer {
+
+        protected $aws;
+
+        public function __construct(AwsSDK $aws)
+        {
+            $this->aws = $aws;
+        }
+
+        public function send($to, $from, $subject, $message)
+        {
+            $this->aws->addTo($to)
+                ->setFrom($from)
+                ->setSubject($subject)
+                ->setMessage($message);
+                ->sendEmail();
+        }
+    }
+
+We bind `Emailer` to the `AwsEmailer` implementation:
+
+    App::bind('Emailer', function()
+    {
+        return new AwsEmailer( new AwsSDK );
+    });
+
+A controller uses the `Emailer` interface as a dependency:
+
+{title="File: app/controllers/EmailController.php", lang=php}
+    class EmailController extends BaseController {
+
+        protected $emailer;
+
+        // Class dependency: Emailer
+        public function __construct(Emailer $emailer)
+        {
+            $this->emailer = $emailer;
+        }
+
+        public function email()
+        {
+            $this->emailer->send(
+                'ex-to@example.com',
+                'ex-from@example.com',
+                'Peanut Butter Jelly Time!',
+                "It's that time again! And so on!"
+            );
+
+            return Redirect::to('/');
+        }
+
+    }
+
+Let's further pretend that someday down the line, our application grows in scope and needs some more functionality than AWS provides. After some searching and weighing of options, you decide on SendGrid.
+
+How do you then proceed to change your application over to SendGrid? Because we used interfaces and Laravel's IoC container, switching to SendGrid is easy!
+
+First, make an implementation of `Emailer` which uses SendGrid!
+
+{lang=php}
+    class SendGridEmailer implements Emailer {
+
+        protected $sendgrid;
+
+        public function __construct(SendGridSDK $sendgrid)
+        {
+            $this->sendgrid = $sendgrid;
+        }
+
+        public function send($to, $from, $subject, $message)
+        {
+            $mail = $this->sendgrid->mail->instance();
+
+            $mail->addTo($to)
+                ->setFrom($from)
+                ->setSubject($subject)
+                ->setText( strip_tags($message) )
+                ->setHtml($message)
+                ->send();
+
+            $this->sendgrid->web->send($mail);
+        }
+    }
+
+Next, (and lastly!), set the application to use SendGrid rather than Aws. Because we have our call to `bind()` in the IoC container, changing the implementation of `Emailer` from `AwsEmailer` to `SendGridEmailer` is as simple as this *one* change:
+
+    // From	
+    App::bind('Emailer', function()
+    {
+        return new AwsEmailer( new AwsSDK );
+    });
+
+    // To
+    App::bind('Emailer', function()
+    {
+        return new SendGridEmailer( new SendGridSDK );
+    });
+
+
+Note that we did this all without changing a line of code elsewhere in our application. Enforcing the use of the interface `Emailer` as a dependency guarantees that any class injected will have the `send()` method available.
+
+We can see this in our example. The controller still called `$this->emailer->send()` without having to be modified when we switched from `AwsEmailer` to `SendGridEmailer` implementations.
+
+## Wrapping Up
+
+Dependency Injection and Inversion of Control are patterns used over and over again in Laravel development. 
+
+As you'll see, we'll define a lot of interfaces in order to make our code more maintainable, and help in testing. Laravel's IoC container makes this easy for us.

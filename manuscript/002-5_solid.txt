@@ -1,0 +1,35 @@
+{mainmatter}
+
+# SOLID
+
+Since I'll mention SOLID principles in passing throughout this book, I'll include a very brief explanation of them here, mostly taken from the [Wikipedia entry](http://en.wikipedia.org/wiki/SOLID_(object-oriented_design)) with some extra explanation in context of Laravel.
+
+### Single Responsibility Principle
+
+A class (or unit of code) should have one responsibility.
+
+### Open/Closed Principle
+
+A class should be open for extension but closed for modification.
+
+You can extend a class or implement and interface, but you should not be able to modify a class directly. This means you should extend a class and use the new extension rather than change a class directly.
+
+Additionally, this means setting class attributes and methods as private or protected properly so they cannot be modified by external code.
+
+### Liskov Substitution Principle
+
+Objects in a program should be replaceable with instances of their subtypes without altering the correctness of that program.
+
+In PHP, this often means creating interfaces for your code to implement. You can then change (switch-out) implementations of the interfaces. Doing so should be possible without having to change how your application code interacts with the implementation. The interface serves as a contract, guaranteeing that certain methods will be available.
+
+### Interface Segregation Principle
+
+Many client-specific interfaces are better than one general-purpose interface.
+
+In general, it's preferable to create an interface and implement it many times over than create a general-purpose class which attempts to work in all situations.
+
+### Dependency Inversion Principle
+
+One should depend upon abstractions rather than concrete classes.
+
+You should define class dependencies as an interface rather than a concrete class. This allows you to switch an implementation of the interface out without having to change the class using the dependency.

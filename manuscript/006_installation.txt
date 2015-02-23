@@ -1,0 +1,145 @@
+# Installation
+
+Let's start at the beginning.
+
+This chapter will cover how to install Laravel. If you're reading this, you probably already know how to do this! However I feel it's worth including as I'll cover some extra steps I take to ward off potential pitfalls.
+
+## Install Composer
+
+Composer is necessary to handle Laravel's dependencies. I typically install [Composer](http://getcomposer.org/) globally, so it can be run anywhere on my development machine.
+
+{title="Installing Composer globally in the command line"}
+	$ curl -sS https://getcomposer.org/installer | php
+	// Assumes /usr/local/bin is in your PATH
+	$ sudo mv composer.phar /usr/local/bin/composer
+
+Now you can run Composer from anywhere.
+
+## Create a New Project
+
+Once installed, we can use Composer to create a new Laravel project. We'll call our sample project "Implementing Laravel". Run this command:
+
+{title="Creating a new Laravel project with Composer"}
+	$ composer create-project laravel/laravel "Implementing Laravel"
+
+I> This will clone the `laravel/laravel` project from Github and install its dependencies, as if you've cloned the git repository and run `$ composer install` manually. It won't, however, start a Git repository for you - you'll have to do that yourself with `$ git init`.
+
+## Config
+
+Next we'll do some application setup and configuration.
+
+### Permissions
+
+Periodically, depending on your development environment, you may find yourself needing to set the permissions of the `app/storage` directory. This is where Laravel puts logs, sessions, caches and other optimizations. PHP needs to be able to write to this directory.
+
+{title="Making your storage directory world-writable"}
+	$ chmod -R 0777 app/storage
+
+In production, the web server often runs as user (and group) `www-data`. Since we don't necessarily want to make our files world-writable in production, we can instead make sure they are writable by `www-data` specifically.
+
+{title="Making your storage directory production-ready"}
+	$ chgrp -R www-data app/storage  # Change all to group www-data
+	$ chmod -R g+w app/storage         # Make them group-writable
+
+### Environments
+
+Environments can and often should be set differently per server - usually at a minimum you may want to setup a local development server, a staging server and a production server.
+
+Let's create a "local" environment. Start by creating a directory `app/config/local`.
+
+For now, all we need to do is add in our local database connection. Create the file `app/config/local/database.php`.
+
+Here's an example of what that might look like. Note that we didn't copy the complete `app/config/database.php` file, we only defined what values we needed to override for our local environment.
+
+{title="File: app/config/local/database.php", lang=php}
+	<?php
+
+	return array(
+
+		'connections' => array(
+
+			'mysql' => array(
+				'driver'    => 'mysql',
+				'host'      => 'localhost',
+				'database'  => 'implementinglaravel',
+				'username'  => 'root',
+				'password'  => 'root',
+				'charset'   => 'utf8',
+				'collation' => 'utf8_unicode_ci',
+				'prefix'    => '',
+			),
+
+		)
+	);
+
+The next step is to make sure Laravel chooses the "local" environment when we run it from our development server. By default, the environment is determined by what URL you use to access the application. If your URL is "localhost", you can set "localhost" as the "machine name" used to specify the "local" environment:
+
+{title="File: bootstrap/start.php", lang=php}
+	// Assign "local" environment to "localhost"
+	$env = $app->detectEnvironment(array(
+
+		'local' => array('localhost'),
+
+	));
+
+	// Or perhaps any URL ending in .dev:
+	$env = $app->detectEnvironment(array(
+
+		'local' => array('*.dev'),
+
+	));
+
+	// Or a combination thereof:
+	$env = $app->detectEnvironment(array(
+
+		'local' => array('localhost', '*.dev'),
+
+	));
+
+#### Environmental Variables
+
+Rather than URL, you may want to use an environmental variable.
+
+An environmental variable is a variable set in your *server* configuration, rather than in PHP code.
+
+I opt for this method as it allows us to change the URL of your development environment without effecting the environment. This gives you the ability to allow a team of developers to use the same URL to access the application, without worrying about environment collision. It also allows you to set the environment inside of any automated configuration and provisioning tool such as Chef or Puppet.
+
+In Apache, you can add an environmental variable into your .htaccess file or virtual host configuration:
+
+	SetEnv LARA_ENV local
+
+If you're using Nginx and PHP-FPM, you can pass an environmental variable to fastcgi:
+
+	location ~ \.php$ {
+		# Other Parametes . . .
+		fastcgi_split_path_info ^(.+\.php)(/.+)$;
+		fastcgi_pass unix:/var/run/php5-fpm.sock;
+		fastcgi_index index.php;
+		fastcgi_param LARA_ENV local; # Here's our environment!
+		include fastcgi_params;
+	}
+
+After you set an environmental variable, we need to tell Laravel how to detect it:
+
+{title="File: bootstrap/start/php"}
+	$env = $app->detectEnvironment(function()
+	{
+		// Default to development if no env found
+		return getenv('LARA_ENV') ?: 'development';
+	});
+
+## Wrapping Up
+After you get your environment set up, you should be good to go! You can now:
+
+* Install Composer globally
+* Set needed file permissions
+* Set configuration for your specific environment
+* Set your environment with environmental variables
+
+D>## Default Environment
+D>
+D> Many people are inclined to set their production credentials directly in the default `app/config/database.php` file. This is not recommended.
+D>
+D> While setting up a separate environment for your production server(s) may seem like extra work, consider what may happen if your environment detection should fail and an action such as a migration or seeding falls back to production credentials! The extra safety is well worth it.
+D>
+D> You may also want to consider omitting your "production" environment in your code repository altogether! If you are using git, you can add `app/config/production` to your `.gitignore` file to do so. You'll need to add in the configuration to your production server manually, but you avoid exposing your production credentials to your code repository.

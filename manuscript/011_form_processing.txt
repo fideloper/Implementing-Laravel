@@ -1,0 +1,477 @@
+# Form processing
+
+One half of handling user input is Validation. The other half is, of course, form processing.
+
+
+## What Is It?
+
+Let's go over what "form processing" is. If you have a form, and a user submits info, the steps taken in code generally are:
+
+1. Gather user input
+2. Validate user input
+3. Perform some operation with user input
+4. Generate a response
+
+## *Where* Do We Use It?
+
+A controller is an excellent place for items 1 and 4 above. We've seen how validation (step 2) can be handled as a service. Processing the form (step 3) can *also* be handled by a service within our application code!
+
+Moving the form processing out of the controller and into a set of service classes gives us a better opportunity to unit test it. We can take away the dependency of it having to run in context of an HTTP request, allowing us to mock its dependencies.
+
+In short, moving the form code out of the controller gives us a more reusable, more testable and finally more maintainable way to handle our form code.
+
+## Example
+
+We have validation in place already from the previous chapter, so let's see how we can roll up Validation and Form processing into a better home.
+
+### The Situation
+
+We'll be creating a Form service, which makes use of our Repository class to handle the CRUD, and Validation service to handle user input validation.
+
+From the previous chapter on Validation, we ended up with a controller which has validation setup as a service:
+
+{title="A Resourceful controller", lang=php}
+    // POST /article
+    public function store()
+    {
+        if( $this->validator->with( Input::all() )->passes() )
+        {
+            // FORM PROCESSING
+        } else {
+            return View::make('admin.article_create')
+                    ->withInput( Input::all() )
+                    ->withErrors($this->validator->errors());
+        }
+    }
+
+What we can do now is setup the Form processing as a service.
+
+After doing so, here's what our new directory structure will look like:
+
+	app
+	|- Impl
+	|--- Service
+	|------ Form
+	|--------- Article
+	|------------ ArticleForm.php
+	|------------ ArticleFormLaravelValidator.php
+	|--------- FormServiceProvider.php
+
+## Restructuring
+This is a rare occasion where we **won't** start by creating an implementation. The form class will *use* our interfaced classes, but won't itself implement a specific interface. This is because there aren't other implementations of the form to take on. It's pure PHP - it will take input in the form of an array and *orchestrate* the use of the validation service and data repository.
+
+### Validation
+
+Let's start with using the validation from the last chapter. In this example, we'll create a form for creating *and* updating articles. In both cases in this example, the validation rules are the same. Lastly, note that we're moving the article form validator class into the `Form` service directory.
+
+{title="File: app/Impl/Service/Form/Article/ArticleFormLaravelValidator.php", lang=php}
+    <?php namespace Impl\Service\Form\Article;
+
+    use Impl\Service\Validation\AbstractLaravelValidator;
+
+    class ArticleFormLaravelValidator extends AbstractLaravelValidator {
+
+        /* Same as previous chapter, with new namespace & location */
+
+    }
+
+### Form
+
+Now  let's create our `ArticleForm` class. As noted, this class will orchestrate the creating and editing of articles, using validation, data repositories and data input.
+
+{title="File: app/Impl/Service/Form/Article/ArticleForm.php", lang=php}
+	<?php namespace Impl\Service\Form\Article;
+
+	use Impl\Service\Validation\ValidableInterface;
+	use Impl\Repo\Article\ArticleInterface;
+
+	class ArticleForm {
+
+		/**
+		 * Form Data
+		 *
+		 * @var array
+		 */
+		protected $data;
+
+		/**
+     	 * Validator
+     	 *
+     	 * @var \Impl\Service\Form\Contracts\ValidableInterface
+     	 */
+		protected $validator;
+
+		/**
+		 * Article repository
+		 *
+		 * @var \Impl\Repo\Article\ArticleInterface
+		 */
+		protected $article;
+
+		public function __construct(
+			ValidableInterface $validator, ArticleInterface $article)
+		{
+			$this->validator = $validator;
+			$this->article = $article;
+		}
+
+		/**
+		 * Create an new article
+		 *
+		 * @return boolean
+		 */
+		public function save(array $input)
+		{
+			// Code to go here
+		}
+
+		/**
+		 * Update an existing article
+		 *
+		 * @return boolean
+		 */
+		public function update(array $input)
+		{
+			// Code to go here
+		}
+
+		/**
+		 * Return any validation errors
+		 *
+		 * @return array
+		 */
+		public function errors()
+		{
+			return $this->validator->errors();
+		}
+
+		/**
+		 * Test if form validator passes
+		 *
+		 * @return boolean
+		 */
+		protected function valid(array $input)
+		{
+			return $this->validator->with($input)->passes();
+		}
+
+	}
+
+So here's the shell of our Article form. We can see that we're injecting the `ValidableInterface` and `ArticleInterface` dependencies, and have a method for returning validation errors.
+
+Let's see what creating and updating an article looks like:
+
+{title="A Resourceful controller", lang=php}
+	/**
+	 * Create an new article
+	 *
+	 * @return boolean
+	 */
+	public function save(array $input)
+	{
+		if( ! $this->valid($input) )
+		{
+			return false;
+		}
+
+		return $this->article->create($input);
+	}
+
+	/**
+	 * Update an existing article
+	 *
+	 * @return boolean
+	 */
+	public function update(array $input)
+	{
+		if( ! $this->valid($input) )
+		{
+			return false;
+		}
+
+		return $this->article->update($input);
+	}
+
+Well, that was easy! Our form is handling the processing, but actually not doing the heavy lifting of creating or updating an article. Instead, it's passing that responsibility off to our interfaced repository classes which do the hard work for us. The form class is merely orchestrating this process.
+
+## Heavy Lifting
+
+Now we actually have the form processing in place. It takes user input, runs the validation, returns errors and sends the data off for processing.
+
+The last step is to do the heavy lifting of creating/updating the articles.
+
+Let's go back to our Article interface. Since we know we need to create and update articles, we can make those into the required methods `create()` and `update()`. Let's see what that looks like:
+
+{title="File: app/Impl/Repo/Article/ArticleInterface.php", lang=php}
+	<?php namespace Impl\Repo\Article;
+
+	interface ArticleInterface {
+
+		/* Previously covered methods omitted */
+
+		/**
+		 * Create a new Article
+		 *
+		 * @param array  Data to create a new object
+		 * @return boolean
+		 */
+		public function create(array $data);
+
+		/**
+		 * Update an existing Article
+		 *
+		 * @param array  Data to update an Article
+		 * @return boolean
+		 */
+		public function update(array $data);
+
+
+Now that we know how our code expects to interact with our repository, let's roll our sleeves up and start the dirty work.
+
+{title="File: app/Impl/Repo/Article/EloquentArticle.php", lang=php}
+    <?php namespace Impl\Repo\Article;
+
+    use Impl\Repo\Tag\TagInterface;
+    use Impl\Service\Cache\CacheInterface;
+    use Illuminate\Database\Eloquent\Model;
+
+    class EloquentArticle implements ArticleInterface {
+
+        protected $article;
+        protected $tag;
+        protected $cache;
+
+        // Class expects an Eloquent model
+        public function __construct(
+            Model $article, TagInterface $tag, CacheInterface $cache)
+        {
+            $this->article = $article;
+            $this->tag = $tag;
+            $this->cache = $cache;
+        }
+
+        // Previous implementation code omitted
+
+        /**
+         * Create a new Article
+         *
+         * @param array  Data to create a new object
+         * @return boolean
+         */
+        public function create(array $data)
+        {
+            // Create the article
+            $article = $this->article->create(array(
+                'user_id' => $data['user_id'],
+                'status_id' => $data['status_id'],
+                'title' => $data['title'],
+                'slug' => $this->slug($data['title']),
+                'excerpt' => $data['excerpt'],
+                'content' => $data['content'],
+            ));
+
+            if( ! $article )
+            {
+                return false;
+            }
+
+            // Helper method
+            $this->syncTags($article, $data['tags']);
+
+            return true;
+        }
+
+        /**
+         * Update an existing Article
+         *
+         * @param array  Data to update an Article
+         * @return boolean
+         */
+        public function update(array $data)
+        {
+            $article = $this->article->find($data['id']);
+
+            if( ! $article )
+            {
+                return false;
+            }
+
+            $article->user_id = $data['user_id'];
+            $article->status_id = $data['status_id'];
+            $article->title = $data['title'];
+            $article->slug = $this->slug($data['title']);
+            $article->excerpt = $data['excerpt'];
+            $article->content = $data['content'];
+            $article->save();
+
+            // Helper method
+            $this->syncTags($article, $data['tags']);
+
+            return true;
+        }
+
+        /**
+         * Sync tags for article
+         *
+         * @param \Illuminate\Database\Eloquent\Model  $article
+         * @param array  $tags
+         * @return void
+         */
+        protected function syncTags(Model $article, array $tags)
+        {
+            // Return tags after retrieving
+            // existing tags & creating new tags
+            $tags = $this->tag->findOrCreate( $tags );
+
+            $tagIds = array();
+            $tags->each(function($tag) use ($tagIds)
+            {
+                $tagIds[] = $tag->id;
+            });
+
+            // Assign set tags to article
+            $this->article->tags()->sync($tagIds);
+        }
+
+    }
+
+So, we now have an implementation with Eloquent to create or update an article. We also have a method `findOrCreate()` in the tags repository which (you guessed it) finds tags or creates them if they don't exist already. This allows us to add new tags as we need when creating or editing an article.
+
+The implementation of the `Tags` repository method `findOrCreate` can be seen in the book's Github repository.
+
+T> The steps taken to assign tags to each article is repeated often, and so the protected method `syncTags` was created to handle it. This method does not need to be part of the interface as it's an internal method only used by methods within the class!
+
+## Wrapping Up
+
+Although we don't need a Service Provider to define what form class to create (there's only one concrete `ArticleForm` class), we do need to define what dependencies get injected into it. These are Laravel's validator class, and the implementation of `ArticleInterface`.
+
+We'll do that in a Service Provider. Let's see what that looks like:
+
+{title="File: app/Impl/Service/Form/FormServiceProvider.php", lang=php}
+	<?php namespace Impl\Service\Form;
+
+    use Illuminate\Support\ServiceProvider;
+    use Impl\Service\Form\Article\ArticleForm;
+    use Impl\Service\Form\Article\ArticleFormLaravelValidator;
+
+    class FormServiceProvider extends ServiceProvider {
+
+        /**
+         * Register the binding
+         *
+         * @return void
+         */
+        public function register()
+        {
+            $app = $this->app;
+
+            $app->bind('Impl\Service\Form\Article\ArticleForm', function($app)
+            {
+                return new ArticleForm(
+                	new ArticleFormLaravelValidator( $app['validator'] ),
+                	$app->make('Impl\Repo\Article\ArticleInterface')
+                );
+            });
+        }
+
+    }
+
+The last step is to add this to your `app/config/app.php` with the other Service Providers.
+
+## The Final Results
+
+Now we can see what our controller finally looks like! We've moved all form processing and validation logic out of the controller. We can now test and reuse those independently of the controller. The only logic remaining in the controller, other than calling our form processing class, is using Laravel's Facades for redirecting and responding to the requests.
+
+{title="A Resourceful controller", lang=php}
+    <?php
+
+    use Impl\Repo\Article\ArticleInterface;
+	use Impl\Service\Form\Article\ArticleForm;
+
+    class ArticleController extends BaseController {
+
+        protected $articleform;
+
+        public function __construct(
+        	ArticleInterface $article, ArticleForm $articleform)
+        {
+        	$this->article = $article;
+        	$this->articleform = $articleform;
+        }
+
+        /**
+         * Create article form
+         * GET /admin/article/create
+         */
+        public function create()
+        {
+            View::make('admin.article_create', array(
+                'input' => Session::getOldInput()
+            ));
+        }
+
+        /**
+         * Create article form processing
+         * POST /admin/article
+         */
+        public function store()
+        {
+            // Form Processing
+            if( $this->articleform->save( Input::all() ) )
+            {
+                // Success!
+                return Redirect::to('admin.article')
+                        ->with('status', 'success');
+            } else {
+
+                return Redirect::to('admin.article_create')
+                        ->withInput()
+                        ->withErrors( $this->articleform->errors() )
+                        ->with('status', 'error');
+            }
+        }
+
+        /**
+         * Create article form
+         * GET /admin/article/{id}/edit
+         */
+        public function edit()
+        {
+            View::make('admin.article_edit', array(
+                'input' => Session::getOldInput()
+            ));
+        }
+
+        /**
+         * Create article form
+         * PUT /admin/article/{id}
+         */
+        public function update()
+        {
+            // Form Processing
+            if( $this->articleform->update( Input::all() ) )
+            {
+                // Success!
+                return Redirect::to('admin.article')
+                        ->with('status', 'success');
+            } else {
+
+                return Redirect::to('admin.article_edit')
+                        ->withInput()
+                        ->withErrors( $this->articleform->errors() )
+                        ->with('status', 'error');
+            }
+        }
+
+    }
+
+## What Did We Gain?
+
+We now made our form processing more testable and maintainable:
+
+* We can test the `ArticleForm` class with a liberal use of mocks.
+* We can change the form's validation rules easily.
+* We can swap out data storage implementations without changing the form code.
+* We gain code reusability: We can call the form code outside of the context of an HTTP request and we can reuse the data repository and validation classes!
+
+Building up our application using the repository pattern and utilizing dependency injection and other SOLID practices has, in total, enabled us to make form processing less insufferable!

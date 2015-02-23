@@ -1,0 +1,91 @@
+# Application Setup
+
+If you've ever asked yourself "Where should I put my code?", this chapter will answer that question.
+
+**Always** create an application library.
+
+An application-specific library works well for code which isn't generic enough to warrant its own package, and also isn't a direct use of Laravel's core classes, such as a controller. An example is business logic code or integration of third-party libraries.
+
+Basically, anything that you want to keep out of your controllers (most code!) should belong in your application library.
+
+## Setting Up the Application Library
+
+To accomplish this, we'll start by creating a namespace for the application. In our example application, I'll choose the easy-to-type name "Impl", short for "Implementing Laravel". This will be both our application's top-level namespace and the directory name. We will create the directory `app/Impl` to house this application code.
+
+Here's what the folder structure will look like:
+
+	Implementing Laravel
+	|- app
+	|--- commands
+	|--- config
+	|--- [ and so on ]
+	|--- Impl
+	|------ Exception
+	|------ Repo
+	|------ Service
+
+
+As you likely know, the namespace, file name and directory structure matters - they allow us to autoload the PHP files based on the [PSR-0 autoloading standard](http://www.php-fig.org/psr/0/).
+
+For example, a sample class in this structure might look like this:
+
+{title="File: app/Impl/Repo/EloquentArticle.php", lang=php}
+	<?php namespace Impl\Repo;
+
+	class EloquentArticle {
+
+		public function all() { . . . }
+
+	}
+
+Following PSR-0, this file would go here:
+
+	Implementing Laravel
+	|- app
+	|--- Impl
+	|------Repo
+	|---------EloquentArticle.php
+
+## Autoloading
+
+We now have a home for the `Impl` application library. Let's tell Composer to autoload those classes with the PSR-0 specification. To accomplish this, edit `composer.json`, and add to the "autoload" section:
+
+{title="File: composer.json"}
+	{
+		"require": {
+			"laravel/framework": "4.0.*"
+		},
+		"autoload": {
+			"classmap": [
+				. . .
+			],
+			"psr-0": {
+				"Impl": "app"
+			}
+		},
+		"minimum-stability": "dev"
+	}
+
+After adding in the `PSR-0` section to autoload the `Impl` library, we need to tell Composer to be aware of them:
+
+	$ composer dump-autoload
+
+I> Using [Composer's dump-autoload](http://getcomposer.org/doc/03-cli.md#dump-autoload) is a way of telling Composer to find new classes in a classmap package (Laravel's controllers, models, etc). For PSR-0 autoloading, it can also rebuild composer's optimized autoloader, saving time when the application is run.
+
+Now anywhere in our code, we can instantiate the `Impl\Repo\EloquentArticle` class and PHP will know to autoload it!
+
+{title="File: app/routes.php"}
+	Route::get('/', function()
+	{
+		$articleRepo = new Impl\Repo\EloquentArticle;
+
+		return View::make('home')->with('articles', $articleRepo->all());
+	}
+
+## Wrapping Up
+
+We saw how to create a separate application library to house our application code. This library is where our business logic, extensions, IoC bindings and more will be added.
+
+T>## Location, Location, Location
+T>
+T> Your application library can go anywhere. By convention, I add mine into the `app` directory, but you are certainly not limited to that location. You may want to use another location, or even consider creating a package out of your application library that can be added as a Composer dependency!

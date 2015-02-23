@@ -1,0 +1,462 @@
+-# Useful Patterns
+
+Getting to the heart of the matter, this chapter will review a few useful architectural patterns in Laravel. We will explore how we can employ the container, interfaces and dependency injection to increase our code's testability and maintainability.
+
+# The Repository Pattern
+
+## What Is It?
+The repository pattern is a way of abstracting your business logic away from your data source. It's an extra layer on top of your data retrieval code which can be used in a number of ways.
+
+## Why Do We Use It?
+The goal of a repository is to increase code maintainability and to form your code around your application's use cases.
+
+Many developers think of it as a tool for larger-scale applications only, however I often find myself using it for most applications. The pros outweigh the cons of writing extra code.
+
+Let's go over some of the benefits:
+
+### Dependency Inversion
+
+This is an expression of the SOLID principles. The repository pattern allows us to create many substitutable implementations of an interface whose purpose is handling our data.
+
+The most cited use case is to "switch out your data source". This describes the ability to switch out a data store, such as MySQL, to something else, such as a NoSQL database, without affecting your application code.
+
+This is accomplished by creating an interface for your data retrieval. You can then create one or many implementations of that interface.
+
+For instance, for the logic around our article repository, we will create an implementation using Eloquent. If we ever needed to switch out our data source to MongoDB, we can create a MongoDB implementation and switch it out. As our application code expects an interface, rather than a concrete class, it does not know the difference when you switch out one implementation of the interface for another.
+
+This becomes *very* powerful if you use your data repository in many places of your application (you likely do). You likely interact with your data on almost every call to your application, whether it's directly in a controller, in a command, in a queue job or in form-processing code.
+
+If you can be sure that each area of your application always has the methods it needs, you're on your way to a much easier future.
+
+But really, how often do you change data sources? Chances are that you rarely change from your core SQL-based data source. There are, however, other reasons for still using the repository pattern.
+
+### Planning
+
+I mentioned earlier in the book that my point of view of application coding is one centering around the business logic. Creating an interface is useful for planning your code around your business needs (use cases).
+
+When defining the methods each implementation will use, you are planning the use cases for your domain. Will users be creating articles? Or will they only be reading articles? How do administrators interact differently than regular users?
+
+Defining interfaces gives you a clearer picture of how your application will be used from a domain-perspective rather than a data-perspective.
+
+### Business Logic Orientation
+
+Building upon the idea of planning around your business domain is actually expressing your business domain in code. Remember that each Eloquent model represents a single database table. Your business logic does not.
+
+For example, an article in our sample application is more than one row in our `articles` table. It also encompasses an author from the `users` table, a status from the `statuses` table and a set of tags, represented in the `tags` and `articles_tags` tables. An article is a composite business entity; It's a business entity which contains other entities, rather than simply containing attributes such as its title, content and publication date.
+
+The repository pattern allows us to express an article as more than a single row in a table. We can combine and mesh together our Eloquent models, relationships and the built-in query builder in whatever way we need in order to convert the raw data into true representations of our business entities.
+
+### Data Layer Logic
+
+The data repository becomes a very convenient place to add in other logic around your data retrieval. Rather than add in extra logic to our Eloquent models, we can use our repository to house it.
+
+For instance, you may need to cache your data. The data repository is a great place to add in your caching layer. The next chapter will show how to do that in a maintainable way.
+
+### Remote Data
+
+It's important to remember that your data can come from many sources - not necessarily your databases.
+
+Many modern web applications are mash-ups - They consume multiple APIs and return useful data to the end user. A data repository can be a way to house the logic of retrieving API information and combining it into an entity that your application can easily consume or process.
+
+This is also useful in a Service Oriented Architecture (SOA), where we may need to make API calls to service(s) within our own infrastructure but don't have direct access to a database.
+
+## Example
+
+Let's see what that looks like with a practical example.
+
+In this example, we'll start with the central portion of any blog, the articles.
+
+### The Situation
+
+As noted, the relevant portions of our database looks like this:
+
+* **articles** - id, user_id, status_id, title, slug, excerpt, content, created_at, updated_at, deleted_at
+* **tags** - id, tag, slug
+* **articles_tags** - article_id, tag_id
+
+We have an `Articles` table, where each row represents an article. We have a `Tags` table where each row represents one tag. Finally, we have an `Articles_Tags` table which we use to assign tags to articles. In Laravel, this is known as a "Pivot Table", and is necessary for representing any Many to Many relationship.
+
+As mentioned previously, the `Articles` and `Tags` tables have corresponding models in `app/models`, which define their relationship and make use of the pivot table.
+
+	app
+	|-models
+	|--- Article.php
+	|--- Tag.php
+
+Now the simplest, yet ultimately least maintainable, way of getting our articles is to use Eloquent models directly in a controller. For example, let's see the logic for the home page of our blog, which will display our 10 latest articles, with pagination.
+
+{title="app/controllers/ContentController.php", lang=php}
+    <?php
+
+    ContentController extends BaseController {
+
+    	// Home page route
+    	public function home()
+    	{
+    		// Get 10 latest articles with pagination
+    		$articles = Articles::with('tags')
+    				->orderBy('created_at', 'desc')
+    				->paginate(10);
+
+    		return View::make('home')
+    				->with('articles', $articles);
+    	}
+
+    }
+
+This is simple, but can be improved. Some of the issues with this pattern:
+
+* **Cannot change data sources** - With Eloquent, we can actually change data sources between various types of SQL. However, the repository pattern will let us change to any data storage - arrays, NoSQL database, from a cache (which we'll see later on) - without changing any code elsewhere in our application.
+* **Not Testable** - We cannot test this code without hitting the database. The Repository Pattern will let us test our code without doing so.
+* **Poor business logic** - We have to put any business logic around our data and models in this controller, greatly reducing reusability.
+
+In short, we'll make our controllers messy and end up repeating code. Let's restructure this to improve the situation.
+
+### Restructuring
+
+We'll be doing quite a few things here:
+
+1. Getting away from using models directly
+2. Making use of interfaces
+3. Implementing Dependency Injection into our controllers
+3. Using Laravel's IoC container to load the correct classes into our controllers
+
+#### The models directory
+The first thing we'll do is to get away from using models directly, and use our application's namespaced and auto-loaded directory, `Impl`.
+
+Here's the directory structure we'll use:
+
+	app
+	|- Impl
+	|--- Repo
+	|------ Article
+	|------ Tag
+	|- models
+	|--- Article.php
+	|--- Tag.php
+
+#### Interfaces
+
+We'll create interfaces quite often in our application code. Interfaces are contracts - they enforce the use of their defined methods in their implementations. This allows us to safely use *any* repository which implements an interface without fear of its methods changing.
+
+They also force you to ask yourself how the class will interact with other parts of your application.
+
+Let's create our first:
+
+{title="File: app/Impl/Repo/Article/ArticleInterface.php", lang=php}
+    <?php namespace Impl\Repo\Article;
+
+    interface ArticleInterface {
+
+        /**
+         * Get paginated articles
+         *
+         * @param int  Current Page
+         * @param int  Number of articles per page
+         * @return object  Object with $items and $totalItems for pagination
+         */
+        public function byPage($page=1, $limit=10);
+
+        /**
+         * Get single article by URL
+         *
+         * @param string  URL slug of article
+         * @return object  Object of article information
+         */
+        public function bySlug($slug);
+
+        /**
+         * Get articles by their tag
+         *
+         * @param string  URL slug of tag
+         * @param int  Current Page
+         * @param int  Number of articles per page
+         * @return object  Object with $items and $totalItems for pagination
+         */
+        public function byTag($tag, $page=1, $limit=10);
+
+    }
+
+Next we'll create an article repository to implement this interface. But first, we have a decision to make.
+
+How we implement our interface depends on what our data source is. If we're using a flavor of SQL, chances are that Eloquent supports it. However, if we are consuming an API or using a NoSQL database, we may need to create an implementation to work for those.
+
+Since I'm using MySQL, I'll leverage Eloquent, which will handily deal with relationships and make managing our data easy.
+
+{title="File: app/Impl/Repo/Article/EloquentArticle.php", lang=php}
+    <?php namespace Impl\Repo\Article;
+
+    use Impl\Repo\Tag\TagInterface;
+    use Illuminate\Database\Eloquent\Model;
+
+    class EloquentArticle implements ArticleInterface {
+
+        protected $article;
+        protected $tag;
+ 
+
+        // Class dependency: Eloquent model and
+        // implementation of TagInterface
+        public function __construct(Model $article, TagInterface $tag)
+        {
+            $this->article = $article;
+            $this->tag = $tag;
+        }
+
+        /**
+         * Get paginated articles
+         *
+         * @param int  Current Page
+         * @param int  Number of articles per page
+         * @return StdClass Object with $items and $totalItems for pagination
+         */
+        public function byPage($page=1, $limit=10)
+        {
+            $result = new \StdClass;
+            $result->page = $page;
+            $result->limit = $limit;
+            $result->totalItems = 0;
+            $result->items = array();
+                                 
+            $articles = $this->article->with('tags')
+                            ->where('status_id', 1)
+                            ->orderBy('created_at', 'desc')
+                            ->skip( $limit * ($page-1) )
+                            ->take($limit)
+                            ->get();
+
+            // Create object to return data useful
+            // for pagination
+            $result->items = $articles->all();
+            $result->totalItems = $this->totalArticles();
+
+            return $data;
+        }
+
+        /**
+         * Get single article by URL
+         *
+         * @param string  URL slug of article
+         * @return object object of article information
+         */
+        public function bySlug($slug)
+        {
+            // Include tags using Eloquent relationships
+            return $this->article->with('tags')
+                        ->where('status_id', 1)
+                        ->where('slug', $slug)
+                        ->first();
+        }
+
+        /**
+         * Get articles by their tag
+         *
+         * @param string  URL slug of tag
+         * @param string  Tag
+         * @param int     Current Page
+         * @param int     Number of articles per page
+         * @return StdClass Object with $items and $totalItems for pagination
+         */
+        public function byTag($tag, $page=1, $limit=10)
+        {
+            $foundTag = $this->tag->where('slug', $tag)->first();
+
+            $result = new \StdClass;
+            $result->page = $page;
+            $result->limit = $limit;
+            $result->totalItems = 0;
+            $result->items = array();
+
+            if( !$foundTag )
+            {
+                return $result;
+            }
+
+            $articles = $this->tag->articles()
+                            ->where('articles.status_id', 1)
+                            ->orderBy('articles.created_at', 'desc')
+                            ->skip( $limit * ($page-1) )
+                            ->take($limit)
+                            ->get();
+
+            $result->totalItems = $this->totalByTag();
+            $result->items = $articles->all();
+
+            return $result;
+        }
+
+        /**
+         * Get total article count
+         *
+         * @return int  Total articles
+         */
+        protected function totalArticles()
+        {
+            return $this->article->where('status_id', 1)->count();
+        }
+
+        /**
+         * Get total article count per tag
+         *
+         * @param  string  $tag  Tag slug
+         * @return int     Total articles per tag
+         */
+        protected function totalByTag($tag)
+        {
+            return $this->tag->bySlug($tag)
+                    ->articles()
+                    ->where('status_id', 1)
+                    ->count();
+        }
+
+    }
+
+Here's our file structure again, with the `ArticleInterface` and `EloquentArticle` files:
+
+
+	app
+	|- Impl
+	|--- Repo
+	|------ Article
+	|--------- ArticleInterface.php
+	|--------- EloquentArticle.php
+	|------ Tag
+	|--- models
+	|------ Article.php
+	|------ Tag.php
+
+With our new implementation, we can revisit our controller:
+
+{title="app/controllers/ContentController.php", lang=php}
+    <?php
+
+    use Impl\Repo\Article\ArticleInterface;
+
+    class ContentController extends BaseController {
+
+    	protected $article;
+
+    	// Class Dependency: Subclass of ArticleInterface
+    	public function __construct(ArticleInterface $article)
+    	{
+    		$this->article = $article;
+    	}
+
+    	// Home page route
+    	public function home()
+    	{
+    		$page = Input::get('page', 1);
+    		$perPage = 10;
+
+    		// Get 10 latest articles with pagination
+    		// Still get "arrayable" collection of articles
+    		$pagiData = $this->article->byPage($page, $perPage);
+
+    		// Pagination made here, it's not the responsibility
+    		// of the repository. See section on cacheing layer.
+    		$articles = Paginator::make(
+    			$pagiData->items,
+    			$pagiData->totalItems,
+    			$perPage
+    		);
+
+    		return View::make('home')->with('articles', $articles);
+    	}
+
+    }
+
+#### Wait, What?
+
+You might have a few questions on what I did here in my implementation.
+
+First, we don't return a `Pagination` object by way of the query builder's `paginate()` method. This is on purpose. Our repository is meant to simply return a set of articles and shouldn't have knowledge of the Pagination class nor its generated HTML links.
+
+Instead, we support pagination by using `skip()` and `take()` to make use of MySQL's `LIMIT` and `OFFSET` directly.
+
+This means we defer the creation of a paginator class instance to our controller. Yes, we actually added more code to our controller!
+
+The reason I choose not to incorporate the paginator class into the repository is because it uses HTTP input to get the current page number and generates HTML for page links. This implicitly adds these functionalities as dependencies on our data repository, where they don't belong. Determining the current page number, and generating presentation (HTML) is not logic a data repository should be responsible for.
+
+By keeping the pagination functionality out of our repository, we're also actually keeping our code more maintainable. This would become clear if we used an implementation of the repository that doesn't happen to be an Eloquent model. In that case, it likely wouldn't return an instance of the paginator class. Our view may look for the paginator's `links()` method and find it doesn't exist!
+
+
+#### Tying It Together
+
+We have one step to go before our code works.
+
+As noted, we set up some dependencies in our controllers and repositories. Class  `EloquentArticle` expects `Eloquent\Model` and class `ContentController` expects an implementation of `ArticleInterface` on instantiation.
+
+The last thing we have to do is use Laravel's IoC container and Service Providers to pass these dependencies into the classes when they are requested.
+
+To accomplish this in our application library, we'll create a Service Provider which will tell the application to instantiate the correct classes when needed.
+
+{title="File: app/Impl/Repo/RepoServiceProvider.php", lang=php}
+    <?php namespace Impl\Repo;
+
+    use Article; // Eloquent article
+    use Impl\Repo\Tag\EloquentTag;
+    use Impl\Repo\Article\EloquentArticle;
+    use Illuminate\Support\ServiceProvider;
+
+    class RepoServiceProvider extends ServiceProvider {
+
+        /**
+         * Register the binding
+         *
+         * @return void
+         */
+        public function register()
+        {
+            $this->app->bind('Impl\Repo\Tag\TagInterface', function($app)
+            {
+                return new EloquentTag( new Tag );
+            });
+
+            $this->app->bind('Impl\Repo\Article\ArticleInterface', function($app)
+            {
+                return new EloquentArticle( 
+                    new Article, 
+                    $app->make('Impl\Repo\Tag\TagInterface')
+                );
+            });
+        }
+    }
+
+Now, when an instance of `ArticleInterface` is asked for in our controller, Laravel's IoC container will know to run the closure above, which returns a new instance of `EloquentArticle` (with its dependency, an instance of the `Article` model).
+
+Add this service provider to `app/config/app.php` and you're all set!
+
+X> ## Going Further
+X>
+X> You may have noticed that I mentioned, but did not create, a Tag repository. This is left as an exercise for the reader, and is shown in the sample application code.
+X>
+X> You'll need to define an interface and create an Eloquent implementation. Then the code above will function with the `TagInterface` dependency, which is registered in the `RepoServiceProvider`.
+X>
+X> If you're wondering if it's okay to require a Tag repository inside of your Article repository, the answer is most certainly "yes". We created interfaces so that you're guaranteed that the proper methods are always available.
+X>
+X> Furthermore, repositories are there to follow your business logic, not your database schema. Your business entities often have complex relationships between then. Using multiple Eloquent models and other repositories is absolutely necessary in order to create and modify your business-logic entities.
+
+### What have we gained?
+
+Well, we gained more code, but we have some great reasons!
+
+#### Data Sources
+We're now in a position where we can change our data source. If we need to someday change from MySQL to another SQL-based server we can likely keep using `EloquentArticle` and just change our database connection in `app/config/database.php`. This is something Eloquent and many ORMs make easy for us.
+
+However, if we need to change to a NoSQL database or even add in another data source on top of Eloquent (an API call, perhaps), we can create a new implementation without having to change code throughout our application to support this change.
+
+As an example, if we were to change to MongoDB, we would create a `MongoDbArticle` implementation and change the class bound in the `RepoServiceProvider` - similar to how we changed the email providers in the Container chapter.
+
+#### Testing
+We used dependency injection in two places: Our controller and our `EloquentArticle` classes. We can now test these implementations without hitting the database by mocking an instance of `ArticleInterface` in our controller and `Eloquent/Model` in our repository.
+
+#### Business Logic
+We can express the true business-logic between our entities by including other repositories into our Article repository! For example, an article contains tags, and so it makes sense that our Article repository can use Tags as part of its logic.
+
+D> ## Interfaces
+D>
+D> You may ask yourself if you really need to use interfaces for all of your repositories. Using interfaces does add overhead. Any additions or changes to your repository, such as new public methods or changes to method parameters, should also be represented in your interface. You may find yourself editing multiple files for minor changes on the onset of your project.
+D>
+D> This is a decision you may want to consider if you find yourself not needing an interface. Smaller projects are candidates for skipping interfaces. Larger or long-term projects can benefit greatly.
+D>
+D> In any case, there are still many benefits to using a data repository.

@@ -1,0 +1,13 @@
+# A Note on Opinions
+
+Knowing the benefits (and pitfalls!) of Repository, Dependency Injection, Container, Service Locator patterns and other tools from our architectural tool set can be both liberating and exciting.
+
+The use of those tools, however, can be plagued with unexpected and often nuanced issues.
+
+As such, there are many opinions about how to go about crafting "good code" with such tools.
+
+As I use many real examples in this book, I have implicitly (and sometimes explicitly!) included my own opinions in this book. Always, however, inform your own opinion with both what you read and your own experience!
+
+W> ## "When all you have is a hammer..."
+W>
+W> Overuse of any of these tools can cause it's own issues. The chapters here are examples of how you *can* implement the architectural tools available to us. Knowing when *not* to use them is also an important decision to keep in mind.

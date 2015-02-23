@@ -1,0 +1,438 @@
+# Caching with the Repository Pattern
+
+## What Is It?
+
+A cache is a place to put data that can later be retrieved quickly. A typical use case would be to cache the result of a database query and store it in memory (RAM). This allows us to retrieve the result of the query much quicker the next time we need it - we save a trip to the database and the time it takes for the database to process the query. Because the data is stored in memory, it is extremely fast.
+
+While a database is a persistent data store, a cache is a *temporary* data storage. By design, cached data cannot be counted on to be present.
+
+## Why Do We Use It?
+
+Caching is often added to reduce the number of times the database or other services need to be accessed by your application. If you have an application with large data sources or complex queries and processing, caching can be an indispensable tool for keeping your application fast and responsive.
+
+## Example
+
+Now that we've seen the repository pattern in action, let's add a caching layer onto it.
+
+To accomplish caching, we'll do something a little advanced but ultimately more maintainable. We'll be using the [Decorator pattern](http://en.wikipedia.org/wiki/Decorator_pattern) in order to "decorate" our data repository with a caching mechanism.
+
+This will also set up our data repositories for any future decorators, perhaps loggers or profilers.
+
+### The Decorator Pattern
+
+A decorator is a class which "wraps" a class (the "component class"), giving it the ability to add functionality around any component class method.
+
+To accomplish this, the decorators extends (or implements) the same base class as the wrapped component class. This lets us call the same methods on the decorator as we would on the component class.
+
+The ultimate benefit is that we can add more and more behaviors around a component class without having to actually change that component class. Additionally, we can add whichever behavior we need, as we need them, at run-time.
+
+Let's see how that works in practice.
+
+### The Situation
+
+The last chapter introduced the `Article` data repository. We can continue our trend of abstraction and wrap the repository with a cache decorator.
+
+Caching works by checking if the data we want already exists in the cache. If it does, we return it to the calling code. If it does not exist, or is expired, we retrieve the data from our persistent data source (often a database), and then store it in the cache for the next request to use. Finally, we return the data to the calling code.
+
+T> One issue that's common in Laravel is caching paginated results. Closures (anonymous functions) aren't able to be serialized without some mucking about. Luckily this is not an issue since we did not use the Paginator class in our repository!
+
+Let's see how we can add caching cleanly. First, we'll create a caching service and then we'll use it within a cache decorator.
+
+### The Structure
+
+Before we jump into the decorator pattern, we need to first create our caching service.
+
+As usual, we'll start by building an interface. This, once again, serves as a contract - our code will expect classes to implement these interfaces so they know that certain methods will always be available.
+
+Here's the directory structure we'll use:
+
+	app
+	|- Impl
+	|--- Service
+	|------ Cache
+	|--------- CacheInterface.php
+	|--------- LaravelCache.php
+	|--- Repo
+
+Now we'll create the interface.
+
+{title="File: app/Impl/Service/Cache/CacheInterface.php", lang=php}
+	<?php namespace Impl\Service\Cache;
+
+	interface CacheInterface {
+
+		/**
+		 * Retrieve data from cache
+		 *
+		 * @param string 	Cache item key
+		 * @return mixed 	PHP data result of cache
+		 */
+		public function get($key);
+
+		/**
+		 * Add data to the cache
+		 *
+		 * @param string    Cache item key
+		 * @param mixed     The data to store
+		 * @param integer   The number of minutes to store the item
+		 * @return mixed    $value variable returned for convenience
+		 */
+		public function put($key, $value, $minutes=null);
+
+		/**
+		 * Test if item exists in cache
+		 * Only returns true if exists && is not expired
+		 *
+		 * @param string    Cache item key
+		 * @return bool     If cache item exists
+		 */
+		public function has($key);
+
+	}
+
+This interface incorporates the usual caching mechanisms. We could have used Laravel's cache class directly (which has its own interface) but, as you'll see, creating our own implementation can give us some extra configurability.
+
+Let's create an implementation. As we'll be using Laravel's Cache package, we'll create a "Laravel" implementation.
+
+D> I won't create a Memcached, File or any other specific cache storage implementation here because Laravel already abstracts away the ability to change the cache driver at will. If you're asking yourself why I add *another* layer of abstraction on top of Laravel's, it's because I'm striving to abstract away any specific implementation from my application! This goes towards maintainability (the ability to switch implementations without affecting other parts of the application) and testability (the ability to unit test with mocking).
+
+{file="File: app/Impl/Service/Cache/LaravelCache.php", lang=php}
+	<?php namespace Impl\Service\Cache;
+
+	use Illuminate\Cache\CacheManager;
+
+	class LaravelCache implements CacheInterface {
+
+		protected $cache;
+		protected $cachekey;
+		protected $minutes;
+
+		public function __construct(CacheManager $cache, $cachekey, $minutes=null)
+		{
+			$this->cache = $cache;
+			$this->cachekey = $cachekey;
+			$this->minutes = $minutes;
+		}
+
+		public function get($key)
+		{
+			return $this->cache->section($this->cachekey)->get($key);
+		}
+
+		public function put($key, $value, $minutes=null)
+		{
+			if( is_null($minutes) )
+			{
+				$minutes = $this->minutes;
+			}
+
+			return $this->cache->section($this->cachekey)->put($key, $value, $minutes);
+		}
+
+		public function has($key)
+		{
+			return $this->cache->section($this->cachekey)->has($key);
+		}
+
+	}
+
+Let's go over what's happening here. This class has some dependencies:
+
+1. An instance of Laravel's Cache
+2. A cache key
+3. A default number of minutes to cache data
+
+We pass our code an instance of Laravel's Cache in the constructor method (Dependency Injection) in order to make this class unit-testable - we can mock the `$cache` dependency.
+
+We use a cache key so each instance of this class can have a unique key. We can also later change the key to invalidate any cache created in this class, should we need to.
+
+Finally we can set a default number of minutes to cache any item in this class. This default can be overridden in the `put()` method.
+
+W> I typically use Memcached for caching. The default "file" driver does **NOT** support the used `section()` method, and so you'll see an error if you use the default "file" driver with this implementation.
+
+
+### A Note on Cache Keys
+
+A good use of cache keys is worth mentioning. Each item in your cache has a unique key used to retrieve the data. By convention, these keys are often "namespaced". Laravel adds a global namespace of "Laravel" by default for each key. That's editable in `app/config/cache.php`. Should you ever need to invalidate your entire cache you can change that key. This is handy for large pushes to the code which require much of the data stored in the cache to update.
+
+On top of Laravel's global cache namespace, the implementation above adds in a custom namespace ($cachekey). That way, any instance of this `LaravelCache` class can have its own local namespace which can also be changed. You can then quickly invalidate the cache for the keys handled by any particular instance of `LaravelCache`.
+
+See more on namespacing in [this presentation](http://ilia.ws/files/tnphp_memcached.pdf) by Ilia Alshanetsky, creator of Memcached.
+
+### Setting Up the Decorator
+
+I'm going to create an abstract Article decorator, which any future article decorator will extend. Let's see what that looks like:
+
+{file="File: app/Impl/Repo/Article/AbstractArticleDecorator.php", lang=php}
+    <?php namespace Impl\Repo\Article;
+
+    abstract class AbstractArticleDecorator implements ArticleInterface {
+
+        protected $nextArticle;
+
+        public function __construct(ArticleInterface $nextArticle)
+        {
+            $this->nextArticle = $nextArticle;
+        }
+
+        public function byId($id)
+        {
+            return $this->nextArticle->byId($id);
+        }
+
+        public function byPage($page=1, $limit=10, $all=false)
+        {
+            return $this->nextArticle->byPage($page, $limit, $all);
+        }
+
+        public function bySlug($slug)
+        {
+            return $this->nextArticle->bySlug($slug);
+        }
+
+        public function byTag($tag, $page=1, $limit=10)
+        {
+            return $this->nextArticle->byTag($tag, $page, $limit);
+        }
+
+    }
+
+There's a few things to point out here:
+
+This abstract class implements `ArticleInterface`, just like our `EloquentArticle` class. This is important because when we use the cache decorator, we'll be treating it as if it's an instance of `EloquentArticle` itself.
+
+The constructor method takes an instance of `ArticleInterface`. **That means it can be passed `EloquentArticle` or another decorator.**
+
+Each method of the abstract class passes the parameters and function call through to the `nextArticle` object. This is a "pass-through" - it's not adding any functionality.
+
+This is simply so any extending decorator class can choose which methods to wrap functionality around. For example, if our interface defined `create()` and `update()` methods, the cache decorator could skip implementing any caching around them while still making those methods callable. You'll see those two methods in the code examples on GitHub.
+
+### Using the Implementation
+
+Now that we have an implementation of `CacheInterface`, and a `AbstractArticleDecorator` we can create our cache decorator.
+
+Here's the file structure for the article repository, including our new decorator:
+
+	app
+	|- Impl
+	|--- Repo
+	|------ Article
+	|--------- AbstractArticleDecorator.php
+	|--------- ArticleInterface.php
+	|--------- CacheDecorator.php
+	|--------- EloquentArticle.php
+	|------ Tag
+
+Let's create the decorator.
+
+{file="File: app/Impl/Repo/Article/CacheDecorator.php", lang=php}
+    <?php namespace Impl\Repo\Article;
+
+    use Impl\Service\Cache\CacheInterface;
+
+    class CacheDecorator extends AbstractArticleDecorator {
+
+        protected $cache;
+
+        public function __construct(
+            ArticleInterface $nextArticle, CacheInterface $cache)
+        {
+            parent::__construct($nextArticle);
+            $this->cache = $cache;
+        }
+
+        /**
+         * Attempt to retrieve from cache
+         * by ID
+         */
+        public function byId($id)
+        {
+            $key = md5('id.'.$id);
+
+            if( $this->cache->has($key) )
+            {
+                return $this->cache->get($key);
+            }
+
+            $article = $this->nextArticle->byId($id);
+
+            $this->cache->put($key, $article);
+
+            return $article;
+        }
+
+        /**
+         * Attempt to retrieve from cache
+         */
+        public function byPage($page=1, $limit=10)
+        {
+            $key = md5('page.'.$page.'.'.$limit);
+
+            if( $this->cache->has($key) )
+            {
+                return $this->cache->get($key);
+            }
+
+            $paginated = $this->nextArticle->byPage($page, $limit);
+
+            $this->cache->put($key, $paginated);
+
+            return $paginated;
+        }
+
+        /**
+         * Attempt to retrieve from cache
+         */
+        public function bySlug($slug)
+        {
+            $key = md5('slug.'.$slug);
+
+            if( $this->cache->has($key) )
+            {
+                return $this->cache->get($key);
+            }
+
+            $article = $this->nextArticle->bySlug($slug);
+
+            $this->cache->put($key, $article);
+
+            return $article;
+        }
+
+        /**
+         * Attempt to retrieve from cache
+         */
+        public function byTag($tag, $page=1, $limit=10)
+        {
+            $key = md5('tag.'.$tag.'.'.$page.'.'.$limit);
+
+            if( $this->cache->has($key) )
+            {
+                return $this->cache->get($key);
+            }
+
+            $paginated = $this->nextArticle->byId($tag, $page, $limit);
+
+            $this->cache->put($key, $paginated);
+
+            return $paginated;
+        }
+
+    }
+
+Let's go over what's happening in the cache decorator. 
+
+As stated above, the first dependency is yet another instance of `ArticleInterface`. We also added the dependency `CacheInterface`, which will be an instance of the cache service we created above.
+
+If we look at the methods of the cache decorator, we'll see that they create a cache key and check if there's a valid item in the cache by that key. If there is, we return it (never actually using the `nextArticle` variable). If there is not a valid item, we call the same method with the same parameters on the `nextArticle` object. 
+
+Essentially, if an item isn't found in the cache, the cache decorator asks the `nextArticle` variable for the requested item.
+
+The `nextArticle` object will either be another decorator or the component `EloquentArticle`. No matter how many decorators we use, we'll ultimately get the result of the database call. *The decorator pattern allows us to chain as many decorators as we need around a component class!*
+
+Finally, note that we now had to take the `$page` and `$limit` into account when creating the cache key. Since we need to create unique cache keys for **all** variations of our data, we now need to take that into account - it wouldn't do to accidentally return the same set of articles for each page!
+
+### Tying It Together
+
+Just as with our Article repository, our last step is to manage our new dependencies within our Service Providers.
+
+{title="File: app/Impl/Repo/RepoServiceProvider.php", lang=php}
+	<?php namespace Impl\Repo;
+
+    use Article;
+    use Impl\Service\Cache\LaravelCache;
+    use Impl\Repo\Article\CacheDecorator;
+    use Impl\Repo\Article\EloquentArticle;
+    use Illuminate\Support\ServiceProvider;
+
+    class RepoServiceProvider extends ServiceProvider {
+
+        /**
+         * Register the service provider.
+         *
+         * @return void
+         */
+        public function register()
+        {
+            $app = $this->app;
+
+            $app->bind('Impl\Repo\Article\ArticleInterface', function($app)
+            {
+                // Assign the Article repo to a variable
+                $article =  new EloquentArticle(
+                    new Article,
+                    $app->make('Impl\Repo\Tag\TagInterface')
+                );
+
+                // Wrap the Article repo in the
+                // CacheDecorator and return it
+                return new CacheDecorator(
+                    $article,
+                    // Our new Cache service class:
+                    new LaravelCache($app['cache'], 'articles', 10)
+                );
+            });
+        }
+
+    }
+
+I> How did I know to use `$app['cache']` to retrieve Laravel's Cache Manager class? I took a look at [Illuminate\Support\Facades\Cache](https://github.com/laravel/framework/blob/master/src/Illuminate/Support/Facades/Cache.php#L10) and saw which key was used for Laravel's cache class within its IoC container!
+I>
+I> Reviewing Laravel's Service Providers will give you invaluable insight into how Laravel works!
+
+For the `EloquentArticle` repository, you can see that I am using the cache key 'articles'. This means that any cache key used for our Articles will be: `"Laravel.articles.".$key`. For instance, the cache key for an article retrieved by URL slug will be: `"Laravel.articles".md5("slug.".$slug)`.
+
+In this way, we can:
+
+1. Invalidate the entire cache by changing the global "Laravel" namespace in our app config
+2. Invalidate the "article" cache by changing the "articles" namespace in our Service Provider
+3. Invalidate the article cache's "slug" items by changing the "slug" string in our class method
+4. Invalidate a specific article by changing the URL slug of our article.
+
+We have **multiple** levels of granularity in what cached items we can manually invalidate, should the need arise!
+
+T> Consider moving your cache key namespaces to a configuration file so they can be managed in one location.
+T>
+T> How many levels of granularity you choose to use is a design decision worth taking some time to consider.
+
+Similar to our original repository, we cache the information relevant to handle pagination. This has the benefit of NOT making the code specific to any one pagination implementation. Instead we just store what any pagination library is likely going to need (total number of items, the current page, how many items per page) and move the responsibility of creating the Paginator object to the controller.
+
+### Final Steps
+
+Now we can update our controller to take these changes into account:
+
+{title="File: app/controllers/ContentController.php", lang=php}
+	// Home page route
+	public function home()
+	{
+		// Get page, default to 1 if not present
+		$page = Input::get('page', 1);
+
+		// Include which $page we are currently on
+		$pagiData = $this->article->byPage($page);
+
+		$articles = Paginator::make(
+			$pagiData->items,
+			$pagiData->totalItems,
+			$pagiData->perPage
+		);
+
+		return View::make('home')->with('articles', $articles);
+	}
+
+### What Have We Gained?
+
+We've cached database calls in a testable, maintainable way.
+
+#### Cache Implementations
+We can now switch out which cache implementations we use in our application. We can keep **all** of our code the same and use Laravel's config to switch between Redis, Memcached or other cache drivers. Alternatively, we can create our own implementation and define its use in the Service Provider.
+
+#### Separation of Concerns
+We've gone through some hurdles to not couple our code to Laravel's libraries, while still keeping the ability to leverage them. We can still swap out any cache implementation and use any pagination implementation, all-the-while still being able to cache the database query results.
+
+Further still, rather than adding caching into our Article repository directory, we enabled our code to add layers of extra behaviors around it via decorators. The Cache decorator allowed us to add in a layer of caching without changing our previous code *at all*.
+
+In the future, we can use other decorators to add additional functionality - perhaps logging or profiling.
+
+#### Testing
+Using the principles of Dependency Injection, we can still unit test each of our new classes by mocking their dependencies.

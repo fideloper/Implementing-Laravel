@@ -33,7 +33,7 @@ abstract class AbstractArticleDecorator implements ArticleInterface {
         return $this->nextArticle->bySlug($slug);
     }
 
-   /**
+    /**
      * {@inheritdoc}
      */
     public function byTag($tag, $page=1, $limit=10)
