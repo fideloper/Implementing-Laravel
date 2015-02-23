@@ -1,0 +1,162 @@
+-# Core Concepts
+
+Throughout this book, we'll be making use of some of Laravel's more powerful features.
+
+Before jumping in, it's important to at least know about Laravel's container and how it allows us to more easily use Dependency Injection.
+
+This chapter will cover Laravel's container, its use of Inversion of Control, and Dependency Injection.
+
+# The Container
+
+The `Illuminate\Foundation\Application` class ties all of Laravel together. This class is a *container* - it can "contain" data, objects, classes and even closures.
+
+## Basic Usage
+
+To see how the container works, let's run through an exercise in our routes file.
+
+Laravel's container implements `ArrayAccess`, and so we know we can access it like an array. Here we'll see how we can access it like an associative array.
+
+{title="File: app/routes.php", lang=php}
+	Route::get('/container', function()
+	{
+		// Get Application instance
+    	$app = App::getFacadeRoot();
+
+    	$app['some_array'] = array('foo' => 'bar');
+
+    	var_dump($app['some_array']);
+	});
+
+Going to the `/container` route, We'll get this result:
+
+	array (size=1)
+		'foo' => string 'bar' (length=3)
+
+So, we can see that the `Application`, while still a class with attributes and methods, is also accessible like an array!
+
+W>## Facades
+W>
+W> Confused as to what `App::getFacadeRoot()` is doing? The `App` class is a Facade. This allows us to use it anywhere, accessing it in a static manner. However, it's actually not a static class. `getFacadeRoot` will get the real instance of the class, which we needed to do in order to use it like an array in this example.
+W>
+W> See this and other Facades in the `Illuminate\Support\Facades` namespace.
+
+## Getting More Advanced
+
+Now, let's get a little fancier with the container and assign a closure:
+
+{title="File: app/routes.php", lang=php}
+	Route::get('/container', function()
+	{
+		// Get Application instance
+    	$app = App::getFacadeRoot();
+
+    	$app['say_hi'] = function()
+    	{
+    		return "Hello, World!";
+    	};
+
+    	return $app['say_hi'];
+	});
+
+Once again, run the `/container` route and we'll see:
+
+	Hello, World!
+
+While seemingly simple, this is actually quite powerful. This is, in fact, the basis for how the separate Illuminate packages interact with each other in order to make up the Laravel framework.
+
+Later we'll see how Service Providers bind items to the container, acting as the glue between the various Illuminate packages.
+
+
+## Inversion of Control
+
+Laravel's `Container` class has more up its sleeve than simply masquerading as an array. It also can function as an Inversion of Control (IoC) container.
+
+Inversion of Control is a technique which let's us define how our application should implement a class or interface. For instance, if our application has a dependency `FooInterface`, and we want to use an implementing class `ConcreteFoo`, the IoC container is where we define that implementation.
+
+Let's see a basic example of how that works using our `/container` route once again.
+
+First, we'll setup some classes - an interface and an implementing class. For simplicity, these can go right into the `app/routes.php` file:
+
+{title="File: app/routes.php", lang=php}
+    interface GreetableInterface {
+
+        public function greet();
+
+    }
+
+    class HelloWorld implements GreetableInterface {
+
+        public function greet()
+        {
+            return 'Hello, World!';
+        }
+    }
+
+Now, let's use these classes with our container to see what we can do. First, I'll introduce the concept of "binding".
+
+{title="File: app/routes.php", lang=php}
+    Route::get('/container', function()
+    {
+        // Get Application instance
+        $app = App::getFacadeRoot();
+
+        $app->bind('GreetableInterface', function()
+        {
+            return new HelloWorld;
+        });
+
+        $greeter = $app->make('GreetableInterface');
+
+        return $greeter->greet();
+    });
+
+Instead of using the array-accessible `$app['GreetableInterface']`, we used the `bind()` method.
+
+This is using Laravel's IoC container to return the class `HelloWorld` anytime it's asked for `GreetableInterface`.
+
+In this way, we can "swap out" implementations! For example, instead of `HelloWorld`, I could make a `GoodbyeCruelWorld` implementation and decide to have the container return it whenever `GreetableInterface` was asked for.
+
+This goes towards maintainability in our applications. Using the container, we can (ideally) swap out implementations in one location without affecting other areas of our application code.
+
+## Real-World Usage
+
+Where do you put all these bindings in your applications? If you don't want to litter your `start.php`, `filters.php`, `routes.php` and other bootstrapping files with bindings, then you can use Service Provider classes.
+
+Service Providers are created specifically to register bindings to Laravel's container. In fact, nearly all Illuminate packages use a Service Provider to do just that.
+
+Let's see an example of how Service Providers are used within an `Illuminate` package. We'll examine the Pagination package.
+
+First, here is the Pagination Service Provider's `register()` method:
+
+{title="Illuminate\Pagination\PaginationServiceProvider.php", lang=php}
+    public function register()
+    {
+        $this->app['paginator'] = $this->app->share(function($app)
+        {
+            $paginator = new Environment(
+                $app['request'], 
+                $app['view'], 
+                $app['translator']
+            );
+
+            $paginator->setViewName(
+                $app['config']['view.pagination']
+            );
+
+            return $paginator;
+        });
+    }
+
+I> The `register()` method is automatically called on each Service Provider specified within the `app/config/app.php` file.
+
+So, what's going on in this `register()` method? First and foremost, it registers the "paginator" instance to the container. This will make `$app['paginator']` and `App::make('paginator')` available for use by other areas of the application.
+
+Next, it's defining the 'paginator' instance as the returned result of a closure, just as we did in the 'say_hi' example.
+
+W> Don't be confused by the use of `$this->app->share()`. The Share method simply provides a way for the closure to be used as a singleton, similar to calling `$this->app->instance('paginator', new Environment)`.
+
+This closure creates a new `Pagination\Environment` object, sets a configuration value on it and returns it.
+
+You likely noticed that the Service Provider uses other application bindings! The `PaginationEnvironment` class clearly takes some dependencies in its constructor method  - a request object `$app['request']`, a view object `$app['view']`, and a translator `$app['translator']`. Luckily, those bindings are created in other packages of Illuminate, defined in various Service Providers.
+
+We can see, then, how the various Illuminate packages interact with each other. Because they are bound to the application container, we can use them in other packages (or our own code!), without actually tying our code to a specific class.

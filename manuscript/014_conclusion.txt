@@ -1,0 +1,53 @@
+-# Conclusion
+
+# Review
+
+We covered a lot of ground in this book! Some of the topics included:
+
+## Installation
+
+Installing Laravel, including environment setup and production considerations.
+
+## Application Setup
+
+Using an application library.
+
+## Repository Pattern
+
+The how and why of using repositories as an interface to your data storage.
+
+## Caching In the Repository
+
+We added a service layer into our code repository. In this example, we added a layer of caching.
+
+## Validation
+
+We created validation as a service, helping us abstract out the work of validation and implement validation classes specific to our needed use cases.
+
+## Form Processing
+
+We created classes for orchestrating the validation of input and the interaction with our data repositories. These form classes are decoupled from HTTP requests and are able to be used outside of a controller. This also makes them easier to test.
+
+## Error Handling
+
+We went over some considerations of how and when to use error handling, and saw an example of how it might be done to catch application-specific errors.
+
+## Third Party Libraries
+
+We used Twilio's SDK to build a notification library so could send SMS notifications within our error handler.
+
+# What Did You Gain?
+
+Most of this book lays the ground work for building a full featured application.
+
+What I hope you gained from reading this is insight on how SOLID principles can be used in Laravel. The use of interfaces, the IoC container and the Service Providers all provide a powerful way to create a highly testable and maintainable PHP application.
+
+## The Future
+
+I'm hoping the early editions of this book serve as a base on which to build.
+
+The answer to many questions such as "How do I use queues effectively?", "How do I integrate a search engine?" or "What's an advanced usage of Service Providers" will rely and expand on the fundamentals covered here.
+
+With any luck, this will be just the beginning.
+
+Happy coding!

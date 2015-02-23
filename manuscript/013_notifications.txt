@@ -1,0 +1,251 @@
+-# Using Packages
+
+# Using a Package: Notifications
+
+In our previous chapter, we setup an error handler which sends us a notification upon an application error.
+
+In this chapter, we'll create the notification functionality by using a third-party Composer package.
+
+We're going to send an SMS message to our phones when an exception is raised.
+
+## Setup
+
+We need a tool which can send notifications of some kind. In that sense, our application needs a notification service.
+
+Since we identified it as a service to our application, we have an idea of where it will go:
+
+	app
+	|- Impl
+	|--- Service
+	|------ Notification
+
+Next, as usual, we'll make an interface. What does our notifier need to do? Well, it needs a message to send, to know who to send it to, as well as to know who sent the notification. Let's start there:
+
+{title="File: app/Impl/Service/Notification/NotifierInterface.php", lang=php}
+	<?php namespace Impl\Service\Notification;
+
+	interface NotifierInterface {
+
+		/**
+     	* Recipients of notification
+     	* @param  string $to The recipient
+     	* @return Impl\Service\Notification\NotifierInterface
+     	*/
+    	public function to($to);
+
+    	/**
+     	* Sender of notification
+     	* @param  string $from The sender
+     	* @return Impl\Service\Notification\NotifierInterface
+     	*/
+    	public function from($from);
+
+    	/**
+     	* Send notification
+     	* @param  string $subject Subject of notification
+     	* @param  string $message Notification content
+     	* @return void
+     	*/
+    	public function notify($subject, $message);
+
+	}
+
+## Implementation
+
+Next, we need to implement this interface. We've decided to send an SMS to ourselves. To do this, we can use the service Twilio.
+
+Twilio has a PHP SDK available as a Composer package. To add it to our project, we can add it to the `composer.json` file:
+
+	// Add to composer.json as a requirement
+	// or run this in our project root:
+	$ php composer require twilio/sdk:dev-master
+
+After installing the SDK, we can start using it. Let's create an `SmsNotifier` which uses Twilio.
+
+{title="File: app/Impl/Service/Notification/SmsNotifier.php", lang=php}
+    <?php Impl\Service\Notification;
+
+    use Services_Twilio;
+
+    class SmsNotifier implements NotifierInterface {
+
+        /**
+        * Recipient of notification
+        * @var string
+        */
+        protected $to;
+
+        /**
+        * Sender of notification
+        * @var string
+        */
+        protected $from;
+
+        /**
+        * Twilio SMS SDK
+        * @var \Services_Twilio
+        */
+        protected $twilio;
+
+        public function __construct(Services_Twilio $twilio)
+        {
+            $this->twilio = $twilio;
+        }
+
+        /**
+         * Recipients of notification
+         * @param  string $to The recipient
+         * @return Impl\Service\Notificaton\SmsNotifier
+         */
+        public function to($to)
+        {
+            $this->to = $to;
+
+            return $this;
+        }
+
+        /**
+         * Sender of notification
+         * @param  string $from The sender
+         * @return Impl\Service\Notificaton\NotifierInterface
+         */
+        public function from($from)
+        {
+            $this->from = $from;
+
+            return $this;
+        }
+
+        /**
+         * Send notification
+         * @param  string $subject Subject of notification
+         * @param  string $message Notification content
+         * @return void
+         */
+        public function notify($subject, $message)
+        {
+            $this->twilio
+                  ->account
+                  ->sms_messages
+                  ->create(
+                    $this->from,
+                    $this->to,
+                    $this->subject."\n".$this->message
+                  );
+        }
+
+    }
+
+So that's really the bulk of the work. We defined an interface and implemented an SMS notifier, which uses Twilio's PHP SDK.
+
+W> Note that if we needed to switch which SMS provider we use, we could take more steps towards abstracting that out by creating "Transports". For instance, one `SmsTransport` would be Twilio, but could be any other SMS provider. For simplicity, the SmsNotifier simply assumes Twilio and creates no abstraction towards separate "transports".
+W>
+W> Check out how Laravel uses Swift Mailer (in the `Illuminate\Mail` package) for sending emails as an example of how transports can be used.
+
+## Tying it Together
+
+The last step is to add configuration for our Twilio account, and putting everything together in a Service Provider.
+
+For configuration, we can create a new Twilio configuration file:
+
+{title="File: app/config/twilio.php", lang=php}
+	<?php
+
+	return array(
+
+		'from' => '555-1234',
+
+		'to' => '555-5678',
+
+		'account_id' => 'abc1234',
+
+		'auth_token' => '1111111',
+
+	);
+
+Now this configuration file will be available to us in our application. Next we can create the Service Provider to tie everything together.
+
+{title="File: app/Impl/Service/Notification/NotificationServiceProvider.php", lang=php}
+    <?php namespace Impl\Service\Notification;
+
+    use Services_Twilio;
+    use Illuminate\Support\ServiceProvider;
+
+    class NotificationServiceProvider extends ServiceProvider {
+
+        /**
+         * Register the service provider.
+         *
+         * @return void
+         */
+        public function register()
+        {
+            $app = $this->app;
+
+            $app['impl.notifier'] = $app->share(function($app)
+            {
+                $config = $app['config'];
+
+                $twilio = new Services_Twilio(
+                    $config->get('twilio.account_id'),
+                    $config->get('twilio.auth_token')
+                );
+
+                $notifier = SmsNotifier( $twilio );
+
+                $notifier->from( $config['twilio.from'] )
+                         ->to( $config['twilio.to'] );
+
+                return $notifier;
+            });
+        }
+
+    }
+
+So, we used Twilio's SDK, passed it our api credentials from configuration, set our "to" and "from" from configuration and passed that off to our `SmsNotifier`.
+
+Register this Service Provider in the `app/config/app.php` file and we're good to go.
+
+## In Action
+
+We can see this in action back in our error handler. Remember, in our `ExceptionServiceProvider`, we created an error handler which used the SMS notifier:
+
+{title="File: app/Impl/Exception/ExceptionServiceProvider.php", lang=php}
+    public function register()
+    {
+        $app = $this->app;
+
+        $app['impl.exception'] = $app->share(function($app)
+        {
+            return new NotifyHandler( $app['impl.notifier'] );
+        });
+    }
+
+    public function boot()
+    {
+        $app = $this->app;
+
+        $app->error(function(ImplException $e) use ($app)
+        {
+            $app['impl.exception']->handle($e);
+        });
+    }
+
+Now `$app['impl.notifier']` exists for our `NotifyHandler` to use as its notifier implementation!
+
+You can test this by throwing a `ImplException` in your code and waiting to receive a text message.
+
+	throw new ImplException('Test message');
+
+Furthermore, if you want to use the SMS notifier anywhere else in your code, you can!
+
+	$sms = App::make('notification.sms');
+
+	$sms->to('555-5555')
+		->notify($subject, $message);
+
+## What Did We Gain?
+
+We saw an example of how to install and use a third-party Composer package. In this example we used Twilio's SMS SDK in an SMS-based implementation of our Notification service.
+
+[Packagist](http://packagist.org) is a go-to resource for discovering Composer packages. Whenever you find yourself about to code any functionality, you should check there first to see if something already exists. Chances are a well-coded, tested package exists!

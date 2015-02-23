@@ -1,0 +1,105 @@
+{backmatter}
+-# Addendum
+
+# Database Tables
+
+The database tables used in this application can be created from the migration files included in the [sample code repository](https://github.com/fideloper/implementing-laravel).
+
+For reference, here is a quick overview of them.
+
+## articles
+
+    +------------+------------------+------+-----+---------------------+----------------+
+    | Field      | Type             | Null | Key | Default             | Extra          |
+    +------------+------------------+------+-----+---------------------+----------------+
+    | id         | int(10) unsigned | NO   | PRI | NULL                | auto_increment |
+    | user_id    | int(10) unsigned | NO   |     | NULL                |                |
+    | status_id  | int(10) unsigned | NO   |     | NULL                |                |
+    | title      | varchar(255)     | NO   |     | NULL                |                |
+    | slug       | varchar(255)     | NO   |     | NULL                |                |
+    | excerpt    | text             | NO   |     | NULL                |                |
+    | content    | text             | NO   |     | NULL                |                |
+    | deleted_at | timestamp        | YES  |     | NULL                |                |
+    | created_at | timestamp        | NO   |     | 0000-00-00 00:00:00 |                |
+    | updated_at | timestamp        | NO   |     | 0000-00-00 00:00:00 |                |
+    +------------+------------------+------+-----+---------------------+----------------+
+
+## articles_tags
+
+    +------------+------------------+------+-----+---------------------+----------------+
+    | Field      | Type             | Null | Key | Default             | Extra          |
+    +------------+------------------+------+-----+---------------------+----------------+
+    | id         | int(10) unsigned | NO   | PRI | NULL                | auto_increment |
+    | article_id | int(10) unsigned | NO   | MUL | NULL                |                |
+    | tag_id     | int(10) unsigned | NO   | MUL | NULL                |                |
+    | created_at | timestamp        | NO   |     | 0000-00-00 00:00:00 |                |
+    | updated_at | timestamp        | NO   |     | 0000-00-00 00:00:00 |                |
+    +------------+------------------+------+-----+---------------------+----------------+
+
+## statuses
+
+    +------------+------------------+------+-----+---------------------+----------------+
+    | Field      | Type             | Null | Key | Default             | Extra          |
+    +------------+------------------+------+-----+---------------------+----------------+
+    | id         | int(10) unsigned | NO   | PRI | NULL                | auto_increment |
+    | status     | varchar(255)     | NO   |     | NULL                |                |
+    | slug       | varchar(255)     | NO   |     | NULL                |                |
+    | created_at | timestamp        | NO   |     | 0000-00-00 00:00:00 |                |
+    | updated_at | timestamp        | NO   |     | 0000-00-00 00:00:00 |                |
+    +------------+------------------+------+-----+---------------------+----------------+
+
+## tags
+
+    +-------+------------------+------+-----+---------+----------------+
+    | Field | Type             | Null | Key | Default | Extra          |
+    +-------+------------------+------+-----+---------+----------------+
+    | id    | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+    | tag   | varchar(255)     | NO   |     | NULL    |                |
+    | slug  | varchar(255)     | NO   |     | NULL    |                |
+    +-------+------------------+------+-----+---------+----------------+
+
+## users
+
+    +------------+------------------+------+-----+---------------------+----------------+
+    | Field      | Type             | Null | Key | Default             | Extra          |
+    +------------+------------------+------+-----+---------------------+----------------+
+    | id         | int(10) unsigned | NO   | PRI | NULL                | auto_increment |
+    | email      | varchar(255)     | NO   | UNI | NULL                |                |
+    | password   | varchar(255)     | NO   |     | NULL                |                |
+    | deleted_at | timestamp        | YES  |     | NULL                |                |
+    | created_at | timestamp        | NO   |     | 0000-00-00 00:00:00 |                |
+    | updated_at | timestamp        | NO   |     | 0000-00-00 00:00:00 |                |
+    +------------+------------------+------+-----+---------------------+----------------+
+
+# Application Library Structure
+
+How you decide to organize your application library should comes from your point of view on code and your applications needs. I tend to create application libraries which follow the codes functions.
+
+If the application was more centered around the individual entities, you may find it to be something like this:
+
+    app
+    |- Impl
+    |--- Core
+    |------ Exception
+    |------ AbstractRepository
+    |--- Service
+    |------ Cache
+    |------ Validation
+    |--------- AbstractLaravelValidator.php
+    |--------- ValidableInterface.php
+    |--- Article
+    |------ Article.php
+    |------ EloquentArticle.php
+    |------ ArticleInterface.php
+    |------ ArticleForm.php
+    |------ ArticleLaravelValidation.php
+    |--- Tag
+    |------ Tag.php
+    |------ EloquentTag.php
+    |------ TagInterface.php
+
+This is a slightly different point of view of application coding than shown in this book. For example, the validation in the above organization may validate data for each individual entity, such as an article or a tag.
+
+Conversely, the validation in this book centered around the use-case of validating a "form". For example, when creating an article, the validation was used to check for all data of the composite article entity - the article itself along with the author, status and any other entities which makes up a complete article.
+
+Both (and others!) points of view are valid.

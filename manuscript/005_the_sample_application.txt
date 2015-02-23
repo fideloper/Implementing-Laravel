@@ -1,0 +1,66 @@
+-# Setting Up Laravel
+
+# The Sample Application
+
+This book will use a sample application. We will build upon a simple blog application - everybody's favorite weekend learning project.
+
+The application is viewable on Github at [fideloper\Implementing-Laravel](https://github.com/fideloper/implementing-laravel). There you can view code and see working examples from this book.
+
+Here is an overview of some information about the application.
+
+## Database
+
+We'll have a database with the following tables and fields:
+
+* **articles** - id, user_id, status_id, title, slug, excerpt, content, created_at, updated_at, deleted_at
+* **statuses** - id, status, slug, created_at, updated_at
+* **tags** - id, tag, slug
+* **articles_tags** - article_id, tag_id
+* **users** - id, email, password, created_at, updated_at, deleted_at
+
+You'll find migrations for these tables, as well as some seeds, in the `app/database/migrations` directory on Github.
+
+## Models
+
+Each of the database tables will have a corresponding Eloquent model class, inside of the `app/models` directory.
+
+* `models/Article.php`
+* `models/Status.php`
+* `models/Tag.php`
+* `models/User.php`
+
+## Relationships
+
+Users can create articles and so there is a "one-to-many" relationship between users and articles; Each user can write multiple articles, but each article only has one user. This relationship is created within both the `User` and `Article` models.
+
+Like users, there is a "one to many" relationship between statuses and articles - Each article is assigned a status, and a status can be assigned to many articles.
+
+Finally, the Articles and Tags have a relationship. Each article can have one or many tags. Each tag can be assigned to one or many articles. Therefore, there is a "many to many" relationship between articles and tags. This relationship is defined within the `Article` and `Tag` models, and uses the `Articles_Tags` pivot table.
+
+## Testability and Maintainability
+
+I'll use the phrase "testable and maintainable" a lot. In most contexts, you can assume:
+
+1. **Testable** code practices SOLID principles in a way that allows us to unit test - to test one specific unit of code (or class) without bringing in its dependencies. This is most notable in the use of Dependency Injection which directly allows the use of mocking to abstract away class dependencies.
+2. **Maintainable** code looks to the long-term cost in development time. This means that making changes to the code should be easy, even after months or years. Popular examples of a change that should be easy is switching out one email provider for another or one data-store for another. This is most directly realized through the use of interfaces and making use of inversion of control.
+
+## Architectural Notes
+This book will cover creating an application library which contains most application code for the sample blog. The structure of the application library makes some assumptions about how we go about building the application code.
+
+First, you'll note that I do not put Controllers into my application code. This is on purpose!
+
+Laravel is a web-framework, designed to handle an HTTP request and route to your application code. The Request, Router and Controller classes are all designed to operate at the HTTP level.
+
+Our application, however, does not need any such requirement. We're simply writing application logic which revolves around our business goals.
+
+An HTTP request being routed to a controller function can be seen as a convenient way for a request to reach our application code (we're all on the internet, after all). However, our application does not necessarily need to "know" about the code calling our application, or HTTP at all.
+
+This is an extension of the concept "separation of concerns". While we certainly are unlikely to use our applications out of context of the internet, it is useful to think of your web framework as an implementation detail of your application, rather than the core of it.
+
+Think of it this way: our applications are not an implementation of the Laravel framework. Instead, Laravel is an implementation of our applications.
+
+Taken to an extreme, an application would be able to be implemented by any framework or code capable of implementing the interfaces we define.
+
+Extremes, however, are not pragmatic, and so we use Laravel to accomplish most of our application goals. Laravel is the means to most of our ends - it does things extremely well!
+
+This also shapes the application library structure I build up to in this book. I'll create a series of directories reflecting application code functions, such as a data repository and cache services. These functional areas tend to be interfaced, which we implement using various Illuminate packages.

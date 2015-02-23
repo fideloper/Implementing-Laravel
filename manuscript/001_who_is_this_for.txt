@@ -1,0 +1,13 @@
+-# Introduction
+
+# Who Is This For?
+
+## Who Will Get the Most Benefit?
+This book is written for those who know the fundamentals of Laravel and are looking to see more advanced examples of implementing their knowledge in a testable and maintainable manner.
+
+From the lessons here, you will see how to apply architectural concepts to Laravel in a variety of ways, with the hope that you can use and adapt them for your own needs.
+
+## What To Know Ahead of Time
+We all have varying levels of knowledge. This book is written for those who are familiar with Laravel 4 and its core concepts. It therefore assumes some knowledge of the reader.
+
+Taylor Otwell's book [*Laravel: From Apprentice to Artisan*](https://leanpub.com/laravel) is a great prerequisite. Although I'll cover these on a basic level, readers will hopefully already have a basic understanding of the principles of SOLID and Laravel's IoC container.
